@@ -72,6 +72,18 @@ Build the fork images and push to ECR. The scripts automatically write the image
 
 After PRs merge upstream, remove the `aws_api_image` / `aws_doc_image` lines from `terraform.tfvars` to use default official images.
 
+### Step 2.5: Enable Authentication (Optional)
+
+Generate a bearer token and add it to `terraform.tfvars`:
+
+```bash
+TOKEN=$(openssl rand -base64 32)
+echo "auth_token = \"${TOKEN}\"" >> terraform/terraform.tfvars
+echo "Save this token for MCP client config: ${TOKEN}"
+```
+
+When `auth_token` is set, ALB rejects requests without a valid `Authorization` header (HTTP 401). Leave it empty or unset to disable authentication.
+
 ### Step 3: Deploy
 
 ```bash
