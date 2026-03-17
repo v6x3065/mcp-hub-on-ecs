@@ -29,6 +29,29 @@ variable "log_retention_days" {
 }
 
 # ============================================================================
+# Authentication
+# ============================================================================
+
+variable "auth_token" {
+  type        = string
+  description = <<-EOT
+    Bearer token for MCP endpoint authentication.
+    When set, ALB requires "Authorization: Bearer <token>" header on all requests.
+    When empty, no authentication is enforced (not recommended for production).
+    
+    Generate a token: openssl rand -base64 32
+    
+    Client configuration example:
+      {
+        "url": "https://your-domain.com/aws-api/mcp",
+        "headers": { "Authorization": "Bearer your-token-here" }
+      }
+  EOT
+  default     = ""
+  sensitive   = true
+}
+
+# ============================================================================
 # MCP Services Enable/Disable Controls
 # ============================================================================
 # Simple boolean flags to control which MCP services to deploy

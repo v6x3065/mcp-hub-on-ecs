@@ -84,3 +84,17 @@ variable "listener_rules" {
   }))
   default = {}
 }
+
+# Authentication
+variable "auth_token" {
+  description = "Bearer token for MCP endpoint auth. When set, ALB rejects requests without valid Authorization header."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "enable_auth" {
+  description = "Enable bearer token authentication. Set to true when auth_token is provided."
+  type        = bool
+  default     = false
+}

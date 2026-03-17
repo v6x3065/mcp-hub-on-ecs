@@ -170,6 +170,17 @@ resource "aws_lb_listener_rule" "http_rules" {
     }
   }
 
+  # Auth: require valid token in Authorization header
+  dynamic "condition" {
+    for_each = var.enable_auth ? [1] : []
+    content {
+      http_header {
+        http_header_name = "Authorization"
+        values           = ["Bearer ${var.auth_token}", var.auth_token]
+      }
+    }
+  }
+
   tags = merge(
     var.tags,
     {
@@ -177,6 +188,31 @@ resource "aws_lb_listener_rule" "http_rules" {
       Service = each.key
     }
   )
+}
+
+# HTTP 401 deny rules - catch requests with missing/invalid token
+resource "aws_lb_listener_rule" "http_deny" {
+  for_each = var.enable_auth && !(var.http_to_https_redirect && var.enable_https) ? var.listener_rules : {}
+
+  listener_arn = aws_lb_listener.http.arn
+  priority     = each.value.priority + 1
+
+  action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "application/json"
+      message_body = jsonencode({ error = "Unauthorized", message = "Valid token required in Authorization header" })
+      status_code  = "401"
+    }
+  }
+
+  condition {
+    path_pattern {
+      values = [each.value.path_pattern]
+    }
+  }
+
+  tags = merge(var.tags, { Name = "${var.project_name}-${var.environment}-http-deny-${each.key}" })
 }
 
 # HTTPS Listener Rules - Path-based routing
@@ -219,6 +255,17 @@ resource "aws_lb_listener_rule" "https_rules" {
     }
   }
 
+  # Auth: require valid token in Authorization header
+  dynamic "condition" {
+    for_each = var.enable_auth ? [1] : []
+    content {
+      http_header {
+        http_header_name = "Authorization"
+        values           = ["Bearer ${var.auth_token}", var.auth_token]
+      }
+    }
+  }
+
   tags = merge(
     var.tags,
     {
@@ -226,4 +273,29 @@ resource "aws_lb_listener_rule" "https_rules" {
       Service = each.key
     }
   )
+}
+
+# HTTPS 401 deny rules - catch requests with missing/invalid token
+resource "aws_lb_listener_rule" "https_deny" {
+  for_each = var.enable_auth && var.enable_https && !var.manage_https_manually ? var.listener_rules : {}
+
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = each.value.priority + 1
+
+  action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "application/json"
+      message_body = jsonencode({ error = "Unauthorized", message = "Valid token required in Authorization header" })
+      status_code  = "401"
+    }
+  }
+
+  condition {
+    path_pattern {
+      values = [each.value.path_pattern]
+    }
+  }
+
+  tags = merge(var.tags, { Name = "${var.project_name}-${var.environment}-https-deny-${each.key}" })
 }

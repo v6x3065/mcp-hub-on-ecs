@@ -15,6 +15,16 @@ vpc_cidr = "10.0.0.0/16"
 log_retention_days = 7
 
 # ============================================================================
+# Authentication
+# ============================================================================
+# Generate a token: openssl rand -base64 32
+# When set, all MCP endpoints require Authorization header.
+# Supports both "Bearer <token>" and "<token>" formats.
+# Leave empty to disable auth (not recommended for production).
+
+# auth_token = "your-secret-token-here"
+
+# ============================================================================
 # MCP Services Configuration
 # ============================================================================
 # Simple enable/disable controls for MCP services

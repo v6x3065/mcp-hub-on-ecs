@@ -62,6 +62,10 @@ module "alb" {
   http_to_https_redirect = var.http_to_https_redirect
   ssl_policy             = var.ssl_policy
 
+  # Authentication
+  auth_token  = var.auth_token
+  enable_auth = nonsensitive(var.auth_token != "")
+
   # Target groups for MCP services - dynamically created from mcp_services
   target_groups = {
     for name, config in local.mcp_services_config : name => {

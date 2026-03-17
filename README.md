@@ -106,7 +106,8 @@ Example Kiro IDE config (`.kiro/settings/mcp.json`):
       "url": "https://your-domain.com/aws-api/mcp",
       "headers": {
         "Accept": "application/json, text/event-stream",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": "Bearer <your-auth-token>"
       },
       "autoApprove": ["call_aws", "suggest_aws_commands"],
       "timeout": 120000
@@ -115,7 +116,8 @@ Example Kiro IDE config (`.kiro/settings/mcp.json`):
       "url": "https://your-domain.com/aws-doc/mcp",
       "headers": {
         "Accept": "application/json, text/event-stream",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": "Bearer <your-auth-token>"
       },
       "autoApprove": ["get_available_services", "read_documentation"],
       "timeout": 120000
@@ -142,6 +144,7 @@ socat TCP-LISTEN:8003,fork,reuseaddr TCP:<alb-dns-name>:80
 curl -X POST https://your-domain.com/aws-api/mcp \
   -H "Accept: application/json, text/event-stream" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-auth-token>" \
   -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}'
 ```
 
@@ -199,6 +202,7 @@ Tips: disable unused services, use Fargate Spot for non-prod, reduce log retenti
 
 - ECS tasks in private subnets, no direct internet access
 - ALB restricted to specific IPs via security groups (user-managed, not in Terraform)
+- **Bearer token authentication** — optional, set `auth_token` in `terraform.tfvars` to enable. ALB rejects requests without a valid `Authorization` header (401). Supports both `Bearer <token>` and raw `<token>` formats. Generate a token with `openssl rand -base64 32`
 - IAM Task Role with ReadOnlyAccess (no write operations)
 - HTTPS with ACM certificates (optional)
 - No AWS credentials on client machines
