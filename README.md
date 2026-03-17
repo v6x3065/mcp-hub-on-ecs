@@ -54,7 +54,6 @@ certificate_arn = "arn:aws-cn:acm:cn-northwest-1:<account-id>:certificate/xxx"
 **HTTPS prerequisites** (Terraform does not manage DNS or certificates):
 1. Register a domain with valid ICP filing (备案) — required for China regions
 2. Request or import a certificate in ACM (`aws acm request-certificate` or import via console)
-3. After deployment, add a CNAME record pointing your domain to the ALB DNS name (`terraform output alb_dns_name`)
 
 If you don't have a certificate yet, set `enable_https = false` and use the [local proxy workaround](#testing-without-https) for testing.
 
@@ -72,7 +71,7 @@ Build the fork images and push to ECR. The scripts automatically write the image
 
 After PRs merge upstream, remove the `aws_api_image` / `aws_doc_image` lines from `terraform.tfvars` to use default official images.
 
-### Step 2.5: Enable Authentication (Optional)
+### Step 3: Enable Authentication (Optional)
 
 Generate a bearer token and add it to `terraform.tfvars`:
 
@@ -84,7 +83,7 @@ echo "Save this token for MCP client config: ${TOKEN}"
 
 When `auth_token` is set, ALB rejects requests without a valid `Authorization` header (HTTP 401). Leave it empty or unset to disable authentication.
 
-### Step 3: Deploy
+### Step 4: Deploy
 
 ```bash
 cd terraform
@@ -92,7 +91,23 @@ terraform init
 terraform apply
 ```
 
-### Step 4: Security Group
+### Step 5: Configure DNS (HTTPS only)
+
+Point your custom domain to the ALB:
+
+```bash
+cd terraform && terraform output alb_dns_name
+```
+
+Add a CNAME record in your DNS provider:
+
+```
+your-domain.com  CNAME  <alb-dns-name>
+```
+
+> China regions require a valid ICP filing (备案) for the domain.
+
+### Step 6: Security Group
 
 Add your client IP to the ALB security group (not managed by Terraform to avoid committing IPs):
 
@@ -103,7 +118,7 @@ aws ec2 authorize-security-group-ingress \
   --cidr <your-ip>/32 --region cn-northwest-1 --no-paginate
 ```
 
-### Step 5: Configure MCP Client
+### Step 7: Configure MCP Client
 
 ```bash
 terraform output mcp_endpoints
