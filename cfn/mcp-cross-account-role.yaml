@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Creates a read-only role that allows the MCP ECS task role to assume into this account.
+  Deploy via StackSets across your organization.
+
+Parameters:
+  McpTaskRoleArn:
+    Type: String
+    Description: ARN of the ECS task role that will assume this role
+  RoleName:
+    Type: String
+    Default: McpCrossAccountReadOnly
+    Description: Name of the role to create
+
+Resources:
+  McpCrossAccountRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref McpTaskRoleArn
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws-cn:iam::aws:policy/ReadOnlyAccess
+
+Outputs:
+  RoleArn:
+    Description: ARN of the cross-account role
+    Value: !GetAtt McpCrossAccountRole.Arn
