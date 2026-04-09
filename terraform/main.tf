@@ -71,7 +71,7 @@ module "alb" {
     for name, config in local.mcp_services_config : name => {
       name_suffix          = "${name}-tg"
       port                 = config.container_port
-      health_check_path    = "/"
+      health_check_path    = try(config.health_check_path, "/")
       health_check_matcher = "200,404"
     } if config.enabled
   }
@@ -82,6 +82,8 @@ module "alb" {
       path_pattern     = config.path_pattern
       priority         = config.priority
       target_group_key = name
+      require_auth     = try(config.require_auth, true)
+      skip_rewrite     = try(config.skip_rewrite, false)
     } if config.enabled
   }
 

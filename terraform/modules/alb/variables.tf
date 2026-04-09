@@ -81,6 +81,8 @@ variable "listener_rules" {
     path_pattern     = string
     priority         = number
     target_group_key = string
+    require_auth     = optional(bool, true)
+    skip_rewrite     = optional(bool, false)
   }))
   default = {}
 }

@@ -43,6 +43,10 @@ resource "aws_lb_target_group" "mcp_services" {
 
   deregistration_delay = 60
 
+  lifecycle {
+    create_before_destroy = true
+  }
+
   tags = merge(
     var.tags,
     {
@@ -145,7 +149,7 @@ resource "aws_lb_listener_rule" "http_rules" {
   # URL rewrite transform to strip the service prefix
   # Example: /aws-api/mcp -> /mcp
   dynamic "transform" {
-    for_each = [1]
+    for_each = each.value.skip_rewrite ? [] : [1]
     content {
       type = "url-rewrite"
       
@@ -170,9 +174,9 @@ resource "aws_lb_listener_rule" "http_rules" {
     }
   }
 
-  # Auth: require valid token in Authorization header
+  # Auth: require valid token in Authorization header (skip if require_auth=false)
   dynamic "condition" {
-    for_each = var.enable_auth ? [1] : []
+    for_each = var.enable_auth && each.value.require_auth ? [1] : []
     content {
       http_header {
         http_header_name = "Authorization"
@@ -192,7 +196,9 @@ resource "aws_lb_listener_rule" "http_rules" {
 
 # HTTP 401 deny rules - catch requests with missing/invalid token
 resource "aws_lb_listener_rule" "http_deny" {
-  for_each = var.enable_auth && !(var.http_to_https_redirect && var.enable_https) ? var.listener_rules : {}
+  for_each = var.enable_auth && !(var.http_to_https_redirect && var.enable_https) ? {
+    for k, v in var.listener_rules : k => v if v.require_auth
+  } : {}
 
   listener_arn = aws_lb_listener.http.arn
   priority     = each.value.priority + 1
@@ -230,7 +236,7 @@ resource "aws_lb_listener_rule" "https_rules" {
   # URL rewrite transform to strip the service prefix
   # Example: /aws-api/mcp -> /mcp
   dynamic "transform" {
-    for_each = [1]
+    for_each = each.value.skip_rewrite ? [] : [1]
     content {
       type = "url-rewrite"
       
@@ -255,9 +261,9 @@ resource "aws_lb_listener_rule" "https_rules" {
     }
   }
 
-  # Auth: require valid token in Authorization header
+  # Auth: require valid token in Authorization header (skip if require_auth=false)
   dynamic "condition" {
-    for_each = var.enable_auth ? [1] : []
+    for_each = var.enable_auth && each.value.require_auth ? [1] : []
     content {
       http_header {
         http_header_name = "Authorization"
@@ -277,7 +283,9 @@ resource "aws_lb_listener_rule" "https_rules" {
 
 # HTTPS 401 deny rules - catch requests with missing/invalid token
 resource "aws_lb_listener_rule" "https_deny" {
-  for_each = var.enable_auth && var.enable_https && !var.manage_https_manually ? var.listener_rules : {}
+  for_each = var.enable_auth && var.enable_https && !var.manage_https_manually ? {
+    for k, v in var.listener_rules : k => v if v.require_auth
+  } : {}
 
   listener_arn = aws_lb_listener.https[0].arn
   priority     = each.value.priority + 1

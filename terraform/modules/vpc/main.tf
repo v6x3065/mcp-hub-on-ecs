@@ -202,8 +202,8 @@ resource "aws_security_group" "ecs" {
   # Allow inbound on port 8000 from ALB security group only
   ingress {
     description     = "HTTP from ALB"
-    from_port       = 8000
-    to_port         = 8000
+    from_port       = 3000
+    to_port         = 9000
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }

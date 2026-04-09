@@ -104,6 +104,9 @@ locals {
       container_port = 8000
       path_pattern   = "/aws-api/*"
       priority       = 100
+      health_check_path = "/"
+      require_auth   = true
+      skip_rewrite   = false
       environment_vars = {
         AWS_REGION                  = var.region
         AWS_API_MCP_TRANSPORT       = "streamable-http"
@@ -125,6 +128,9 @@ locals {
       container_port = 8000
       path_pattern   = "/aws-doc/*"
       priority       = 200
+      health_check_path = "/"
+      require_auth   = true
+      skip_rewrite   = false
       environment_vars = {
         AWS_DOCUMENTATION_PARTITION = "aws-cn"
         FASTMCP_TRANSPORT           = "streamable-http"
@@ -144,6 +150,9 @@ locals {
       container_port = 8000
       path_pattern   = "/aws-knowledge/*"
       priority       = 300
+      health_check_path = "/"
+      require_auth   = true
+      skip_rewrite   = false
       environment_vars = {
         FASTMCP_TRANSPORT = "http"
         FASTMCP_PORT      = "8000"
@@ -184,6 +193,9 @@ variable "mcp_services" {
     container_port   = number
     path_pattern     = string
     priority         = number
+    health_check_path = optional(string, "/")
+    require_auth      = optional(bool, true)
+    skip_rewrite      = optional(bool, false)
     environment_vars = map(string)
   }))
 
