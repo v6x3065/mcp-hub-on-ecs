@@ -1,0 +1,383 @@
+####################################################################################
+# Description:                                                                     #
+# ECS task definition + Fargate service of the aws-mcp aws-documentation MCP server          #
+# (instance 02). Image = <ECR repository URI>:<pImageTag>.                         #
+# RELEASE: build and push the image (GitHub Actions), then change pImageTag (and   #
+# pDesiredCount, first release only) in a PR; the central CI updates this stack.   #
+# Serves AWS China documentation (AWS_DOCUMENTATION_PARTITION=aws-cn); needs no    #
+# target-account role.                                                             #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values                                                  #
+#     3, Tag Parameter Default values (keep identical to infra/standards/tags.yaml) #
+####################################################################################
+#Update 1: please update the change information
+  #CR: ___NA_________
+  #Change request purpose: ______aws-mcp: ECS service for aws-doc____________
+  #Developer: __Jack.Shen___________
+  #Reviewer: __Simon.Xu___________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China CloudOps Code for aws-mcp ECS Service (aws-doc)
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Service Info.
+        Parameters:
+          - pServiceName
+          - pContainerName
+          - pContainerPort
+          - pCpu
+          - pMemory
+          - pDesiredCount
+          - pImageTag
+          - pDocumentationPartition
+      -
+        Label:
+          default: Network
+        Parameters:
+          - pPrivateSubnetA
+          - pPrivateSubnetB
+          - pPrivateSubnetC
+      -
+        Label:
+          default: Upstream Stacks
+        Parameters:
+          - pClusterStackName
+          - pExecRoleStackName
+          - pTaskRoleStackName
+          - pEcsSecurityGroupStackName
+          - pTargetGroupStackName
+          - pEcrStackName
+          - pLogGroupStackName
+      -
+        Label:
+          default: Tags
+        Parameters:
+          - pApplNameTag
+          - pAdminTeamTag
+          - pApplicationCiTag
+          - pPrimaryItContactTag
+          - pSNOWRequestIdTag
+          - pSystemOwnerTag
+          - pSystemCustodianTag
+          - pCostCenterTag
+          - pMLPSTag
+          - pEnvironmentTag
+          - pDataClassificationTag
+          - pBusinessAreaTag
+          - pLevel1BusinessAreaTag
+      -
+        Label:
+          default: Developer and Reviewer
+        Parameters:
+          - pDeveloper
+          - pReviewer
+#Update 2: please update all Parameter Default values
+Parameters:
+  pServiceName:
+    Description: Name of the ECS service and task definition family
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-ecssvc-02"
+  pContainerName:
+    Description: Container name
+    Type: String
+    Default: "aws-doc"
+  pContainerPort:
+    Description: Container port
+    Type: Number
+    Default: 8000
+    MinValue: 1
+    MaxValue: 65535
+  pCpu:
+    Description: Fargate task CPU units
+    Type: String
+    Default: "512"
+    AllowedValues: ["256", "512", "1024", "2048", "4096"]
+  pMemory:
+    Description: Fargate task memory (MiB), must be valid for pCpu
+    Type: String
+    Default: "1024"
+  pDesiredCount:
+    Description: Number of tasks. 0 until the first image is pushed to ECR, then 1 or more
+    Type: Number
+    Default: 0
+    MinValue: 0
+  pImageTag:
+    Description: Image tag in the ECR repository (sha-<commit>)
+    Type: String
+    Default: "sha-pending"
+  pPrivateSubnetA:
+    Description: Private Subnet A (cn-northwest-1a)
+    Type: "AWS::EC2::Subnet::Id"
+    Default: "subnet-0a41314598dfbbadd"
+  pPrivateSubnetB:
+    Description: Private Subnet B (cn-northwest-1b)
+    Type: "AWS::EC2::Subnet::Id"
+    Default: "subnet-05144622b7f3b1825"
+  pPrivateSubnetC:
+    Description: Private Subnet C (cn-northwest-1c)
+    Type: "AWS::EC2::Subnet::Id"
+    Default: "subnet-03c2ba1165a2999ad"
+  pDocumentationPartition:
+    Description: Documentation partition served by the server (aws-cn = AWS China documentation)
+    Type: String
+    Default: "aws-cn"
+    AllowedValues:
+      - "aws"
+      - "aws-cn"
+  pClusterStackName:
+    Description: Stack that exports the cluster (ClusterArn)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-ecs-01"
+  pExecRoleStackName:
+    Description: Stack that exports the task execution role (RoleArn)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-ecs-exec-d-iamr-01"
+  pTaskRoleStackName:
+    Description: Stack that exports the task role (RoleArn)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-ecs-task-d-iamr-01"
+  pEcsSecurityGroupStackName:
+    Description: Stack that exports the ECS security group (SecurityGroupId)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-ecs-d-sg-01"
+  pTargetGroupStackName:
+    Description: Stack that exports the target group (TargetGroupArn)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-tg-02"
+  pEcrStackName:
+    Description: Stack that exports the ECR repository (RepositoryUri)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-ecr-02"
+  pLogGroupStackName:
+    Description: Stack that exports the log group (LogGroupName)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-cwlg-02"
+#Update 3: please update Tag Parameter Default values
+  pApplNameTag:
+    Description: Application Name Tag Value
+    Type: String
+    Default: "aws-mcp"
+  pAdminTeamTag:
+    Description: Admin Team Tag Value
+    Type: String
+    Default: "GISS"
+  pApplicationCiTag:
+    Description: Application Ci Tag Value
+    Type: String
+    Default: "CI00000000000000"
+  pPrimaryItContactTag:
+    Description: Primary IT Contact Tag Value
+    Type: String
+    Default: "cn_it_infra_cloud_ops@lists.lilly.com"
+  pSNOWRequestIdTag:
+    Description: Snow Request Id Tag Value
+    Type: String
+    Default: "NA"
+  pSystemOwnerTag:
+    Description: System Owner Tag Value
+    Type: String
+    Default: "xu_ming_ming@lilly.com"
+  pSystemCustodianTag:
+    Description: SystemCustodian Tag Value
+    Type: String
+    Default: "shen_jun_jack@lilly.com"
+  pCostCenterTag:
+    Description: CostCenter Tag Value
+    Type: String
+    Default: "5205060"
+  pMLPSTag:
+    Description: MLPS Tag Value
+    Type: String
+    Default: "No"
+  pEnvironmentTag:
+    Description: Environment Tag Value
+    Type: String
+    Default: "DEV"
+  pDataClassificationTag:
+    Description: Data Classification Tag Value
+    Type: String
+    Default: "Yellow"
+  pBusinessAreaTag:
+    Description: Business Area Tag Value
+    Type: String
+    Default: "Commercial"
+  pLevel1BusinessAreaTag:
+    Description: Level 1 Business Area Tag Value
+    Type: String
+    Default: "IBU"
+  pDeveloper:
+    Description: Code developer
+    Type: String
+    Default: Jack.Shen
+    AllowedValues:
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+  pReviewer:
+    Description: Code Reviewer
+    Type: String
+    Default: Simon.Xu
+    AllowedValues:
+      - Nik.Ni
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+Resources:
+  rTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref pServiceName
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: !Ref pCpu
+      Memory: !Ref pMemory
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX
+        CpuArchitecture: X86_64
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub '${pExecRoleStackName}:RoleArn'
+      TaskRoleArn:
+        Fn::ImportValue: !Sub '${pTaskRoleStackName}:RoleArn'
+      ContainerDefinitions:
+        - Name: !Ref pContainerName
+          Image:
+            Fn::Sub:
+              - '${RepositoryUri}:${pImageTag}'
+              - RepositoryUri:
+                  Fn::ImportValue: !Sub '${pEcrStackName}:RepositoryUri'
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref pContainerPort
+              Protocol: tcp
+          Environment:
+            - Name: AWS_DOCUMENTATION_PARTITION
+              Value: !Ref pDocumentationPartition
+            - Name: FASTMCP_TRANSPORT
+              Value: streamable-http
+            - Name: FASTMCP_STATELESS_HTTP
+              Value: "true"
+            - Name: FASTMCP_HOST
+              Value: 0.0.0.0
+            - Name: FASTMCP_PORT
+              Value: !Ref pContainerPort
+            - Name: FASTMCP_LOG_LEVEL
+              Value: INFO
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub '${pLogGroupStackName}:LogGroupName'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+      Tags:
+        - Key: "Name"
+          Value: !Ref pServiceName
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag
+  rService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref pServiceName
+      Cluster:
+        Fn::ImportValue: !Sub '${pClusterStackName}:ClusterArn'
+      TaskDefinition: !Ref rTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: !Ref pDesiredCount
+      HealthCheckGracePeriodSeconds: 60
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref pPrivateSubnetA
+            - !Ref pPrivateSubnetB
+            - !Ref pPrivateSubnetC
+          SecurityGroups:
+            - Fn::ImportValue: !Sub '${pEcsSecurityGroupStackName}:SecurityGroupId'
+      LoadBalancers:
+        - ContainerName: !Ref pContainerName
+          ContainerPort: !Ref pContainerPort
+          TargetGroupArn:
+            Fn::ImportValue: !Sub '${pTargetGroupStackName}:TargetGroupArn'
+      Tags:
+        - Key: "Name"
+          Value: !Ref pServiceName
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag
+Outputs:
+  ServiceName:
+    Description: Name of the ECS service
+    Value: !GetAtt rService.Name
+    Export:
+      Name: !Sub ${AWS::StackName}:ServiceName
+  TaskDefinitionArn:
+    Description: ARN of the task definition revision
+    Value: !Ref rTaskDefinition
+    Export:
+      Name: !Sub ${AWS::StackName}:TaskDefinitionArn
+  StackContact:
+    Value: !Ref pDeveloper

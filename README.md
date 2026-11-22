@@ -13,7 +13,7 @@ Local MCP servers require AWS credentials on every client, making cross-account 
 | **aws-api-mcp-server** | streamable-http | AWS CLI operations with cross-account support | [#2702](https://github.com/awslabs/mcp/pull/2702) |
 | **aws-documentation-mcp-server** | streamable-http | AWS China documentation search | [#2247](https://github.com/awslabs/mcp/pull/2247) |
 
-Both services use custom forks with HTTP transport support. Once PRs merge, switch to official images via `terraform.tfvars`.
+Both services use custom forks with HTTP transport support (`mengchencloud/mcp`: [`feat/cross-account-support`](https://github.com/mengchencloud/mcp/tree/feat/cross-account-support) and [`feature/aws-doc-streamable-http`](https://github.com/mengchencloud/mcp/tree/feature/aws-doc-streamable-http)). Once PRs merge, switch to official images via `terraform.tfvars`.
 
 ## Architecture
 
@@ -22,6 +22,27 @@ Both services use custom forks with HTTP transport support. Once PRs merge, swit
 - Clients → HTTPS → ALB (path-based routing) → ECS Fargate tasks in private subnets
 - ECS Task Role → same-account AWS API calls + cross-account AssumeRole
 - No credentials stored on client side
+
+## Deployment with CloudFormation (`infra/`)
+
+All AWS resources are defined as one-resource-per-stack CloudFormation templates under [infra/templates/](infra/templates), following the Lilly `Foundation/dev2` conventions (file name = stack name = resource name `lly-nw-cloudops-awsmcp…`, common `aws-mcp` tags, parameters with Defaults only, Outputs exported as `<StackName>:<Output>`). Standards: [infra/standards/](infra/standards); design: [docs/superpowers/specs/2026-11-22-aws-mcp-cfn-stacks-design.md](docs/superpowers/specs/2026-11-22-aws-mcp-cfn-stacks-design.md).
+
+The central CI deploys changed templates in path order and stops on the first failure, so release **one layer per PR**, in this order:
+
+| Layer | Stacks (prefix `lly-nw-cloudops-awsmcp`) |
+|-------|-------------------------------------------|
+| L1 | `-d-kms-01`, `-d-sm-01`, `-cf-d-pl-01` |
+| L2 | `-alb-d-sg-01`, `-ecs-d-sg-01`, `-ecs-exec-d-iamp-01`, `-ecs-exec-d-iamr-01`, `-ecs-task-d-iamp-01`, `-ecs-task-d-iamr-01`, `-github-action-d-iamp-01`, `-github-action-d-iamr-01` |
+| L3 | `-d-ecr-01`, `-d-ecr-02`, `-d-cwlg-01`, `-d-cwlg-02` |
+| L4 | `-d-alb-01`, `-d-tg-01`, `-d-tg-02` |
+| L5 | `-d-ecs-01`, `-d-ecssvc-01`, `-d-ecssvc-02` |
+| Target accounts | `IAM/AWSMCP-TargetAccount/`: `-target-ro-d-iamp-01`, `-target-ro-d-iamr-01` (deployed in each queried account) |
+
+Release an application version: run the **Build aws-mcp image** workflow (or `scripts/build-and-deploy-aws-*.sh`), then set `pImageTag` (and `pDesiredCount`, first release only) in the matching `ecssvc` template and open a PR. Fill the pilot values first: `pTargetAccountId` in `-ecs-task-d-iamp-01`, `pGitHubRepo` in `-github-action-d-iamr-01`, `pCertificateArn` / `pHttpsEnabled` if Cloudflare connects over HTTPS.
+
+Local checks before a PR: `python3 infra/scripts/validate_standards.py` and `cfn-lint` / `cfn-guard` (same rules as the central validation).
+
+> The Terraform below is the previous reference implementation. It is kept only for comparison and will be removed once the CloudFormation stacks are deployed.
 
 ## Quick Start
 
@@ -71,6 +92,8 @@ Build the fork images and push to ECR. The scripts automatically write the image
 
 After PRs merge upstream, remove the `aws_api_image` / `aws_doc_image` lines from `terraform.tfvars` to use default official images.
 
+Build options (environment variables): `REPO_URL` (default `https://github.com/mengchencloud/mcp.git`), `REF` (branch or tag), `REGION`. Images are built for `linux/amd64`, tagged `sha-<commit>`, and the ECR repository is created with scan-on-push if missing.
+
 ### Step 3: Enable Authentication (Optional)
 
 Generate a bearer token and add it to `terraform.tfvars`:
@@ -107,16 +130,15 @@ your-domain.com  CNAME  <alb-dns-name>
 
 > China regions require a valid ICP filing (备案) for the domain.
 
-### Step 6: Security Group
+### Step 6: ALB Access (Security Group)
 
-Add your client IP to the ALB security group (not managed by Terraform to avoid committing IPs):
+The ALB only accepts traffic from the CIDRs in `alb_ingress_cidrs` (default: none, so the ALB is unreachable until you set it). Add the Cloudflare origin ranges and any test client IPs to `terraform.tfvars` and re-apply:
 
-```bash
-SG_ID=$(cd terraform && terraform output -raw alb_security_group_id)
-aws ec2 authorize-security-group-ingress \
-  --group-id $SG_ID --protocol tcp --port 443 \
-  --cidr <your-ip>/32 --region cn-northwest-1 --no-paginate
+```hcl
+alb_ingress_cidrs = ["203.0.113.10/32"]   # + Cloudflare origin ranges
 ```
+
+> The rules are managed by Terraform; rules added manually in the console or CLI are removed on the next `apply`.
 
 ### Step 7: Configure MCP Client
 
@@ -177,7 +199,7 @@ curl -X POST https://your-domain.com/aws-api/mcp \
 
 ## Cross-Account Support
 
-ECS task role can assume roles in target accounts dynamically — no hardcoded account IDs.
+The ECS task role can assume read-only roles in target accounts. The set of assumable roles is fixed in Terraform (`assume_role_target_arns`), so a caller-supplied `role_arn` outside that list is rejected by IAM.
 
 ### Usage
 
@@ -190,7 +212,13 @@ call_aws(
 
 ### Deploy Cross-Account Role
 
-A CloudFormation template at `cfn/mcp-cross-account-role.yaml` creates a read-only role trusting the ECS task role.
+A CloudFormation template at `cfn/mcp-cross-account-role.yaml` creates a read-only role (AWS `ReadOnlyAccess` plus an explicit deny on data reads such as `s3:GetObject`, `secretsmanager:GetSecretValue`, `ssm:GetParameter*`, `dynamodb:GetItem/Query/Scan`) trusting the ECS task role. Optional parameters: `ExternalId` (adds an `sts:ExternalId` trust condition) and `MaxSessionDuration`.
+
+Order matters because the trust policy needs the task role to exist:
+
+1. `terraform apply` (creates the task role; no cross-account access yet)
+2. Create the role in the target account(s) (below)
+3. Set `assume_role_target_arns` in `terraform.tfvars` to the created role ARN(s) and `terraform apply` again
 
 ```bash
 TASK_ROLE_ARN=$(cd terraform && terraform output -raw task_role_arn)
@@ -213,6 +241,10 @@ aws cloudformation create-stack-set \
   --region cn-northwest-1
 ```
 
+### Account allow-list (server side)
+
+`aws_api_account_allowlist` passes an alias → role map to the server as `AWS_API_MCP_ACCOUNT_ALLOWLIST`. It only takes effect with a fork build that implements it; stock images ignore it, and IAM scoping above remains the enforced control.
+
 ## Cost Estimation (cn-northwest-1, CNY)
 
 | Component | 1 service | 2 services |
@@ -228,9 +260,11 @@ Tips: disable unused services, use Fargate Spot for non-prod, reduce log retenti
 ## Security
 
 - ECS tasks in private subnets, no direct internet access
-- ALB restricted to specific IPs via security groups (user-managed, not in Terraform)
+- ALB inbound restricted to `alb_ingress_cidrs` (Cloudflare ranges / test IPs); empty by default
 - **Bearer token authentication** — optional, set `auth_token` in `terraform.tfvars` to enable. ALB rejects requests without a valid `Authorization` header (401). Supports both `Bearer <token>` and raw `<token>` formats. Generate a token with `openssl rand -base64 32`
-- IAM Task Role with ReadOnlyAccess (no write operations)
+- Optional server-side JWT validation (`mcp_auth_type = "oauth"` with `mcp_auth_issuer` / `mcp_auth_jwks_uri`, e.g. Entra ID)
+- aws-api runs with `READ_OPERATIONS_ONLY=true` and telemetry disabled
+- Task role: `sts:AssumeRole` only on `assume_role_target_arns`, explicit deny on data-plane reads; no `ReadOnlyAccess` unless `attach_same_account_readonly = true`
 - HTTPS with ACM certificates (optional)
 - No AWS credentials on client machines
 

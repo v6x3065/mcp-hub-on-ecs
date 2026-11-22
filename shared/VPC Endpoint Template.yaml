@@ -1,0 +1,62 @@
+####################################################################################
+# Description:                                                                     #
+# This is the template policy for CFC Endpoints related operation task.            #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values                                                  #                
+####################################################################################
+#Update 1: please update the change information
+  #CR: ____________
+  #Change request purpose: __________________________________________________________
+  #__________________________________________________________________________________
+  #Developer: _____________
+  #Reviewer: _____________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China Pilot Operatoin Code for VPC Endpoint
+# Update 2: Update Parameter descirption and default value
+Parameters:
+  pVpcId:
+    Description: VPC associated with the provided subnets
+    Type: "AWS::EC2::VPC::Id"
+    Default: "vpc-0ae9db8a831aac7bd" #VPC ID
+  pPrivateSubnetA:
+    Type: "AWS::EC2::Subnet::Id"
+    Description: Private Subnet A ID
+    Default: "subnet-0f3702576f9bba32b" #Private Subnet A ID
+  pPrivateSubnetB:
+    Type: "AWS::EC2::Subnet::Id"
+    Description: Private Subnet B ID
+    Default: "subnet-0835cc085dc1c630c" #Private Subnet B ID
+  pPrivateSubnetC:
+    Type: "AWS::EC2::Subnet::Id"
+    Description: Private Subnet C ID
+    Default: "subnet-03e60cb2dd5a75054" #Private Subnet C ID
+  pVPCEndpointSecurityGroupID:
+    Type: "AWS::EC2::SecurityGroup::Id"
+    Description: VPC Endpoint Security Group
+    Default: "sg-0e5c71f98aa3f549a" #Security Group ID for VPCEndpoint
+  pVpcEndpointServiceName:
+    Type: String
+    Description: VPC Endpoint Service Name
+    Default: "cn.com.amazonaws.cn-northwest-1.lambda"  # search endpoint service name in console create process
+#VPC Endpoint tag does not support defining by CloudFormation. Please input tag by AWS Console
+
+Resources:
+  rEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref pVpcId
+      ServiceName: !Ref pVpcEndpointServiceName
+      VpcEndpointType: 'Interface'   #Interface->Lamda&API//Gateway->S3&Dynamodb
+      PrivateDnsEnabled: 'true'
+      SubnetIds:
+        - !Ref pPrivateSubnetA
+        - !Ref pPrivateSubnetB
+        - !Ref pPrivateSubnetC
+      SecurityGroupIds:
+        - !Ref pVPCEndpointSecurityGroupID
+
+
+
+  

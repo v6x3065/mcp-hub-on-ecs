@@ -1,0 +1,262 @@
+
+####################################################################################
+# Description:                                                                     #
+# This is the template policy for CFC Security Group related operation task.       #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values                                                  #
+#     3, Tag Parameter Default values                                              #
+#     4, Define Security Group Ingress Policy                     
+####################################################################################
+#Update 1: please update the change information
+  #CR: ____________
+  #Change request purpose: __________________________________________________________
+  #__________________________________________________________________________________
+  #Developer: _____________
+  #Reviewer: _____________
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Lilly China Cloud Operatoin Code for Application Security Group"
+#Update 2: please update all Parameter Default values 
+Parameters:
+  pVPC:
+    Description: "VPC ID"
+    Type: "AWS::EC2::VPC::Id"
+    Default: ""   #  VPC ID you can choose wehn deploying
+  pLoadBalancerSecurityGroupNameTag:
+    Description: Load Balancer Security Group Name Tag Value
+    Type: String
+    Default: "" 
+  pFargetandLambdaSecurityGroupNameTag:
+    Description: Farget and Lambda Security Group Name Security Group Name Tag Value
+    Type: String
+    Default: "" 
+  pRDSSecurityGroupNameTag:
+    Description: RDS Security Group Name Security Group Name Tag Value
+    Type: String
+    Default: "" 
+  pRedisSecurityGroupNameTag:
+    Description: Redis Security Group Name Tag Value
+    Type: String
+    Default: "" 
+#Update 3: please update Tag Parameter Default values 
+  pApplNameTag:            
+    Description: Application Name Tag Value
+    Type: String
+    Default: "" 
+  pAdminTeamTag:            
+    Description: Admin Team Tag Value
+    Type: String
+    Default: "GISS"                                         # No need change it. Admin Team is GISS
+  pApplicationCiTag:                
+    Description: Application Ci Tag Value
+    Type: String
+    Default: "" 
+  pPrimaryItContactTag:            
+    Description: Primary IT Contact Tag Value
+    Type: String
+    Default: "cn_it_infra_cloud_ops@lists.lilly.com"        # No need change it. PrimaryItContact is GISS China Cloud Ops Group Mail Address.
+  pSNOWRequestIdTag:            
+    Description: Snow Request Id Tag Value
+    Type: String
+    Default: "" 
+  pSystemOwnerTag:          
+    Description: System Owner Tag Value
+    Type: String
+    Default: "" 
+  pSystemCustodianTag:           
+    Description: SystemCustodian Tag Value
+    Type: String
+    Default: "" 
+  pCostCenterTag:                 
+    Description: CostCenter Tag Value
+    Type: String
+    Default: "" 
+  pMLPSTag:                   
+    Description: MLPS Tag Value
+    Type: String
+    Default: "" 
+  pEnvironmentTag:                
+    Description: Environment Tag Value
+    Type: String
+    Default: "DEV" 
+  pBusinessAreaTag:        
+    Description:  Business Area Tag Value
+    Type: String
+    Default: "Commercial" 
+  pLevel1BusinessAreaTag:        
+    Description:  Level 1 Business Area Tag Value
+    Type: String
+    Default: "IBU" 
+Resources:
+# Define Security Group Ingress Policy .
+# Attention: Pls change the SecurityGroupIngress rule based on Application requirements 
+  rLoadBalancerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Load Balancer Security Group"
+      VpcId:
+        Ref: "pVPC"
+      GroupName: !Ref pLoadBalancerSecurityGroupNameTag
+      SecurityGroupIngress:
+        -
+          IpProtocol: "tcp"
+          FromPort: "443"
+          ToPort: "443"
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS from anywhere 
+      Tags:
+        -
+          Key: "Name"
+          Value: !Ref pLoadBalancerSecurityGroupNameTag
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag 
+  rLoadBalancerToFargateandLambdaSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Load Balancer to Fargate and Lambda Security Group"
+      VpcId:
+        Ref: "pVPC"
+      GroupName: !Ref pFargetandLambdaSecurityGroupNameTag
+      SecurityGroupIngress:
+        -
+          IpProtocol: "tcp"
+          FromPort: "80"
+          ToPort: "80"
+          SourceSecurityGroupId: !Ref rLoadBalancerSecurityGroup
+          Description: HTTP from Load Balancer 
+
+      Tags:
+        -
+          Key: "Name"
+          Value: !Ref pFargetandLambdaSecurityGroupNameTag
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag 
+  rFargateLambdaToRDSSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Fargate and Lambda To RDS Security Group"
+      VpcId:
+        Ref: "pVPC"
+      GroupName: !Ref pRDSSecurityGroupNameTag
+      SecurityGroupIngress:
+        -
+          IpProtocol: "tcp"
+          FromPort: "5432"
+          ToPort: "5432"
+          SourceSecurityGroupId: !Ref rLoadBalancerToFargateandLambdaSecurityGroup
+          Description: 5432 From Fargate and Lambda 
+      Tags:
+        -
+          Key: "Name"
+          Value: !Ref pRDSSecurityGroupNameTag
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag 
+  rFargateLambdaToRedisSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Fargate and Lambda to To Redis Security Group"
+      VpcId:
+        Ref: "pVPC"
+      GroupName: !Ref pRedisSecurityGroupNameTag
+      SecurityGroupIngress:
+        -
+          IpProtocol: "tcp"
+          FromPort: "6379"
+          ToPort: "6379"
+          SourceSecurityGroupId: !Ref rLoadBalancerToFargateandLambdaSecurityGroup
+          Description: 6379 From Fargate and Lambda Lillymedicalcn
+      Tags:
+        -
+          Key: "Name"
+          Value: !Ref pRedisSecurityGroupNameTag
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag 

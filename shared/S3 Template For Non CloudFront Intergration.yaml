@@ -1,0 +1,250 @@
+####################################################################################
+# Description:                                                                     #
+# This is the template policy for CFC  S3 related operation task.            #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values                                                  #
+#     3, Tag Parameter Default values                                              #                     
+####################################################################################
+#Update 1: please update the change information
+  #CR: ____________
+  #Change request purpose: __________________________________________________________
+  #__________________________________________________________________________________
+  #Developer: _____________
+  #Reviewer: _____________
+AWSTemplateFormatVersion: 2010-09-09
+Description: Lilly China Cloud Operatoin Code for Application  S3 Bucket 
+#Update 2: please update all Parameter Default values 
+Parameters:
+  pBucketName:             
+    Description:  Bucket Name
+    Type: String
+    Default: "lly-nw-com-app-d-s3-01"  
+  pBucketIAMGroupName:
+    Description:  Bucket IAM Group Name, Support multiple groups
+    Type: CommaDelimitedList
+    #Update 2: please update the group name, multiple groups shall be split by ","
+    Default: ""   
+  pBucketIAMRoleName:     # Application team need create and provide the service role 
+    Description:  Bucket IAM Role Name for Application Services
+    Type: String
+    Default: ""
+  pBucketIAMPolicyName:    
+    Description:  Bucket IAM Policy Name
+    Type: String
+    Default: ""    
+  pCORSValues:                    # Pls use"," to split the mutiple URL Values 
+    Description: CORS Values      # if no need CORS Configuration,Pls delete the pCORSValues & related resources Cors Configuration
+    Type: String
+    Default: "" 
+  pCMKValues: 
+    Description: CMK ARN Name for S3
+    Type: String
+    Default: ""    
+#Update 3: please update Tag Parameter Default values 
+  pApplNameTag:            
+    Description: Application Name Tag Value
+    Type: String
+    Default: "" 
+  pAdminTeamTag:            
+    Description: Admin Team Tag Value
+    Type: String
+    Default: "GISS"   
+  pApplicationCiTag:                
+    Description: Application Ci Tag Value
+    Type: String
+    Default: "" 
+  pPrimaryItContactTag:            
+    Description: Primary IT Contact Tag Value
+    Type: String
+    Default: "cn_it_infra_cloud_ops@lists.lilly.com" 
+  pSNOWRequestIdTag:            
+    Description: Snow Request Id Tag Value
+    Type: String
+    Default: "" 
+  pSystemOwnerTag:          
+    Description: System Owner Tag Value
+    Type: String
+    Default: "" 
+  pSystemCustodianTag:           
+    Description: SystemCustodian Tag Value
+    Type: String
+    Default: "" 
+  pCostCenterTag:                 
+    Description: CostCenter Tag Value
+    Type: String
+    Default: "5205061" 
+  pMLPSTag:                   
+    Description: MLPS Tag Value
+    Type: String
+    Default: "" 
+  pEnvironmentTag:                
+    Description: Environment Tag Value
+    Type: String
+    Default: "DEV" 
+  pDataClassificationTag:         
+    Description: Data Classification Tag Value
+    Type: String
+    Default: "" 
+  pBusinessAreaTag:        
+    Description:  Business Area Tag Value
+    Type: String
+    Default: "Commercial" 
+  pLevel1BusinessAreaTag:        
+    Description:  Level 1 Business Area Tag Value
+    Type: String
+    Default: "IBU" 
+Resources:
+ #  Bucket creation
+  rBucket:
+    Type: "AWS::S3::Bucket"
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref "pBucketName"  
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+ # CORS Configuratoin (Option)   
+      CorsConfiguration:
+        CorsRules:
+          - 
+            AllowedHeaders:
+                - '*'
+            AllowedMethods:
+                - PUT
+                - GET
+            AllowedOrigins:  
+                !Split [ "," , !Ref "pCORSValues"  ]
+            ExposedHeaders:
+                - ETag
+ # Lifecycle Configuration 
+      LifecycleConfiguration:
+        Rules:
+        - Id: Retention Policy
+          Status: Enabled
+          NoncurrentVersionExpirationInDays: 35
+          AbortIncompleteMultipartUpload:  
+               DaysAfterInitiation: 7 
+      VersioningConfiguration: 
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'aws:kms'
+              KMSMasterKeyID: !Ref "pCMKValues"
+   # Tag Key values
+      Tags:
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag 
+  # Deny Non-https Access
+  rBucketpolicy:
+    Type: "AWS::S3::BucketPolicy"
+    DependsOn:
+    - rBucket
+    Properties:
+      Bucket:
+        Ref: "rBucket"
+      PolicyDocument:
+        Statement:
+        - 
+            Sid: DenyNonSSL
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "arn:aws-cn:s3:::${pBucketName}/*"
+              - !Sub "arn:aws-cn:s3:::${pBucketName}"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+#Lilly IAM Policy for  Bucket access
+  rBucketIAMPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Description: "IAM Policy for IAM Group by S3 Bucket "
+      ManagedPolicyName: !Ref "pBucketIAMPolicyName"
+      Path: "/"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - 
+          Effect: Allow
+          Action:
+              - 'kms:Describe*'
+          Resource:
+              - '*'
+        - 
+          Effect: Allow
+          Action:
+              - 's3:PutObject'
+              - 's3:GetObject'
+              - 's3:ListBucket'
+              - 's3:DeleteObject'
+              - 's3:DeleteObjectVersion'
+              - 's3:GetObjectAcl'
+              - 's3:GetObjectVersion'
+              - 's3:GetObjectVersionAcl'
+              - 's3:PutObjectTagging'
+              - 's3:PutObjectVersionTagging'
+              - 's3:RestoreObject'
+              - 's3:GetBucketLocation'
+              - 's3:GetBucketVersioning'
+              - 's3:ListBucketVersions'
+              - 's3:GetMetricsConfiguration'
+          Resource: !Join
+              - ''
+              - - 'arn:aws-cn:s3:::'
+                - !Ref pBucketName
+                - /*
+        - 
+          Effect: Allow
+          Action:
+              - 's3:PutObject'
+              - 's3:GetObject'
+              - 's3:ListBucket'
+              - 's3:DeleteObject'
+              - 's3:DeleteObjectVersion'
+              - 's3:GetObjectAcl'
+              - 's3:GetObjectVersion'
+              - 's3:GetObjectVersionAcl'
+              - 's3:PutObjectTagging'
+              - 's3:PutObjectVersionTagging'
+              - 's3:RestoreObject'
+              - 's3:GetBucketLocation'
+              - 's3:GetBucketVersioning'
+              - 's3:ListBucketVersions'
+              - 's3:GetMetricsConfiguration'
+          Resource: !Join
+              - ''
+              - - 'arn:aws-cn:s3:::'
+                - !Ref pBucketName
+      Groups: !Ref "pBucketIAMGroupName"
+      Roles:
+        - !Ref "pBucketIAMRoleName"

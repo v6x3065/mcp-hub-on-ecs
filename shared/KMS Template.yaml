@@ -1,0 +1,96 @@
+####################################################################################
+# Description:                                                                     #
+# This is the template policy for CFC KMS related operation task.            #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values                                                  #                  
+####################################################################################
+#Update 1: please update the change information
+  #CR: ____________
+  #Change request purpose: __________________________________________________________
+  #__________________________________________________________________________________
+  #Developer: _____________
+  #Reviewer: _____________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China Operatoin Code for Application KMS
+# Update 2: Parameter descirption and default value
+Parameters:
+  pKMSKeyAlias:             
+    Description:  Alias of the KMS Key
+    Type: String
+    Default: ""   
+  pAllowrole:
+    Description:  Allow service role of the key  
+    Type: String
+    Default: ""              
+Resources:
+  rAppKMSKeyAlias: 
+    Type: AWS::KMS::Alias
+    DependsOn:
+    - rAppKMSManagerKey
+    Properties:
+      AliasName: !Sub alias/${pKMSKeyAlias}
+      TargetKeyId:
+        Ref: rAppKMSManagerKey
+  rAppKMSManagerKey: 
+    Type: AWS::KMS::Key
+    Properties:
+      Description: CMK for App 
+      EnableKeyRotation: 'true'
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-1
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws-cn:iam::${AWS::AccountId}:root
+          Action: kms:*
+          Resource: '*'
+        - Sid: Allow administration of the key
+          Effect: Allow
+          Principal:
+            AWS: 
+            - !Sub arn:aws-cn:iam::${AWS::AccountId}:role/LillyChinaOrganizationAccountAccessRole 
+            - !Sub arn:aws-cn:iam::${AWS::AccountId}:role/awscn_global_admins
+          Action:
+          - kms:Create*
+          - kms:Describe*
+          - kms:Enable*
+          - kms:List*
+          - kms:Put*
+          - kms:Update*
+          - kms:Revoke*
+          - kms:Disable*
+          - kms:Get*
+          - kms:Delete*
+          - kms:ScheduleKeyDeletion
+          - kms:CancelKeyDeletion
+          Resource: '*'
+        - Sid: Allow use of the key
+          Effect: Allow
+          Principal:
+            AWS: 
+            - !Sub arn:aws-cn:iam::${AWS::AccountId}:role/${pAllowrole}
+          Action:
+          - kms:DescribeKey
+          - kms:Encrypt
+          - kms:Decrypt
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey
+          - kms:GenerateDataKeyWithoutPlaintext
+          Resource: '*'
+        - Sid: Allow attachment of persistent resources   
+          Effect: Allow
+          Principal:
+            AWS:
+            - !Sub arn:aws-cn:iam::${AWS::AccountId}:role/${pAllowrole}
+          Action:
+          - 'kms:CreateGrant'
+          - 'kms:ListGrants'
+          - 'kms:RevokeGrant'
+          Resource: '*'
+          Condition:
+              Bool:
+                  'kms:GrantIsForAWSResource': 'true'

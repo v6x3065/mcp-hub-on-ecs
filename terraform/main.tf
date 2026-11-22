@@ -4,14 +4,8 @@
 # Data source to get current AWS account ID
 data "aws_caller_identity" "current" {}
 
-# Data source to get current IP for security group rules
-data "http" "myip" {
-  url = "https://checkip.amazonaws.com"
-}
-
 locals {
   account_id = data.aws_caller_identity.current.account_id
-  my_ip      = "${chomp(data.http.myip.response_body)}/32"
 
   common_tags = {
     Project     = var.project_name
@@ -31,6 +25,8 @@ module "vpc" {
   environment  = var.environment
   vpc_cidr     = var.vpc_cidr
 
+  alb_ingress_cidrs = var.alb_ingress_cidrs
+
   tags = local.common_tags
 }
 
@@ -41,6 +37,9 @@ module "iam" {
   project_name = var.project_name
   environment  = var.environment
   account_id   = local.account_id
+
+  assume_role_target_arns      = var.assume_role_target_arns
+  attach_same_account_readonly = var.attach_same_account_readonly
 
   tags = local.common_tags
 }

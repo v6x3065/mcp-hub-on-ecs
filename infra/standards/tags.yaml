@@ -1,0 +1,16 @@
+# Single source of truth for the 13 tag parameters used by every aws-mcp template.
+# validate_standards.py compares each template's parameter Defaults against this file.
+tags:
+  pApplNameTag:           { key: ApplName,           default: "aws-mcp" }
+  pAdminTeamTag:          { key: AdminTeam,          default: "GISS" }
+  pApplicationCiTag:      { key: ApplicationCi,      default: "CI00000000000000" }
+  pPrimaryItContactTag:   { key: PrimaryItContact,   default: "cn_it_infra_cloud_ops@lists.lilly.com" }
+  pSNOWRequestIdTag:      { key: SNOWRequestId,      default: "NA" }
+  pSystemOwnerTag:        { key: SystemOwner,        default: "xu_ming_ming@lilly.com" }
+  pSystemCustodianTag:    { key: SystemCustodian,    default: "shen_jun_jack@lilly.com" }
+  pCostCenterTag:         { key: CostCenter,         default: "5205060" }
+  pMLPSTag:               { key: MLPS,               default: "No" }
+  pEnvironmentTag:        { key: Environment,        default: "DEV" }
+  pDataClassificationTag: { key: DataClassification, default: "Yellow" }
+  pBusinessAreaTag:       { key: BusinessArea,       default: "Commercial" }
+  pLevel1BusinessAreaTag: { key: Level1BusinessArea, default: "IBU" }

@@ -1,0 +1,287 @@
+####################################################################################
+# Description:                                                                     #
+# Internet-facing Application Load Balancer of aws-mcp with HTTP (80) and optional #
+# HTTPS (443) listeners. The default action returns 404; each MCP service adds its #
+# own path rule in its tg stack. Cloudflare sits in front (DNS/certificate owned   #
+# by the Cloudflare team); HTTPS listener is only created when a certificate ARN   #
+# is provided (pCertificateArn != NA).                                             #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values                                                  #
+#     3, Tag Parameter Default values (keep identical to infra/standards/tags.yaml) #
+####################################################################################
+#Update 1: please update the change information
+  #CR: ___NA_________
+  #Change request purpose: ______aws-mcp: Application Load Balancer____________
+  #Developer: __Jack.Shen___________
+  #Reviewer: __Simon.Xu___________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China CloudOps Code for aws-mcp ALB
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: ALB Info.
+        Parameters:
+          - pLoadBalancerName
+          - pPublicSubnetA
+          - pPublicSubnetB
+          - pIdleTimeoutSeconds
+          - pDeletionProtection
+      -
+        Label:
+          default: HTTPS
+        Parameters:
+          - pCertificateArn
+          - pSslPolicy
+      -
+        Label:
+          default: Upstream Stacks
+        Parameters:
+          - pAlbSecurityGroupStackName
+      -
+        Label:
+          default: Tags
+        Parameters:
+          - pApplNameTag
+          - pAdminTeamTag
+          - pApplicationCiTag
+          - pPrimaryItContactTag
+          - pSNOWRequestIdTag
+          - pSystemOwnerTag
+          - pSystemCustodianTag
+          - pCostCenterTag
+          - pMLPSTag
+          - pEnvironmentTag
+          - pDataClassificationTag
+          - pBusinessAreaTag
+          - pLevel1BusinessAreaTag
+      -
+        Label:
+          default: Developer and Reviewer
+        Parameters:
+          - pDeveloper
+          - pReviewer
+#Update 2: please update all Parameter Default values
+Parameters:
+  pLoadBalancerName:
+    Description: Name of the load balancer (max 32 characters)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-alb-01"
+  pPublicSubnetA:
+    Description: Public Subnet A (cn-northwest-1a)
+    Type: "AWS::EC2::Subnet::Id"
+    Default: "subnet-05143f4d153a76934"
+  pPublicSubnetB:
+    Description: Public Subnet B (cn-northwest-1b)
+    Type: "AWS::EC2::Subnet::Id"
+    Default: "subnet-06beee1929a288768"
+  pIdleTimeoutSeconds:
+    Description: Idle timeout, long enough for streamable HTTP responses
+    Type: Number
+    Default: 120
+    MinValue: 1
+    MaxValue: 4000
+  pDeletionProtection:
+    Description: Enable deletion protection
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  pCertificateArn:
+    Description: ACM certificate ARN for the HTTPS listener (NA = no HTTPS listener)
+    Type: String
+    Default: "NA"
+  pSslPolicy:
+    Description: TLS policy of the HTTPS listener
+    Type: String
+    Default: "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  pAlbSecurityGroupStackName:
+    Description: Stack that exports the ALB security group (SecurityGroupId)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-alb-d-sg-01"
+#Update 3: please update Tag Parameter Default values
+  pApplNameTag:
+    Description: Application Name Tag Value
+    Type: String
+    Default: "aws-mcp"
+  pAdminTeamTag:
+    Description: Admin Team Tag Value
+    Type: String
+    Default: "GISS"
+  pApplicationCiTag:
+    Description: Application Ci Tag Value
+    Type: String
+    Default: "CI00000000000000"
+  pPrimaryItContactTag:
+    Description: Primary IT Contact Tag Value
+    Type: String
+    Default: "cn_it_infra_cloud_ops@lists.lilly.com"
+  pSNOWRequestIdTag:
+    Description: Snow Request Id Tag Value
+    Type: String
+    Default: "NA"
+  pSystemOwnerTag:
+    Description: System Owner Tag Value
+    Type: String
+    Default: "xu_ming_ming@lilly.com"
+  pSystemCustodianTag:
+    Description: SystemCustodian Tag Value
+    Type: String
+    Default: "shen_jun_jack@lilly.com"
+  pCostCenterTag:
+    Description: CostCenter Tag Value
+    Type: String
+    Default: "5205060"
+  pMLPSTag:
+    Description: MLPS Tag Value
+    Type: String
+    Default: "No"
+  pEnvironmentTag:
+    Description: Environment Tag Value
+    Type: String
+    Default: "DEV"
+  pDataClassificationTag:
+    Description: Data Classification Tag Value
+    Type: String
+    Default: "Yellow"
+  pBusinessAreaTag:
+    Description: Business Area Tag Value
+    Type: String
+    Default: "Commercial"
+  pLevel1BusinessAreaTag:
+    Description: Level 1 Business Area Tag Value
+    Type: String
+    Default: "IBU"
+  pDeveloper:
+    Description: Code developer
+    Type: String
+    Default: Jack.Shen
+    AllowedValues:
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+  pReviewer:
+    Description: Code Reviewer
+    Type: String
+    Default: Simon.Xu
+    AllowedValues:
+      - Nik.Ni
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+Conditions:
+  cHttps: !Not [!Equals [!Ref pCertificateArn, 'NA']]
+Resources:
+  rLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Ref pLoadBalancerName
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      Subnets:
+        - !Ref pPublicSubnetA
+        - !Ref pPublicSubnetB
+      SecurityGroups:
+        - Fn::ImportValue: !Sub '${pAlbSecurityGroupStackName}:SecurityGroupId'
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: !Ref pIdleTimeoutSeconds
+        - Key: routing.http.drop_invalid_header_fields.enabled
+          Value: "true"
+        - Key: deletion_protection.enabled
+          Value: !Ref pDeletionProtection
+      Tags:
+        - Key: "Name"
+          Value: !Ref pLoadBalancerName
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag
+  rHttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref rLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: "404"
+            ContentType: application/json
+            MessageBody: '{"error":"Not Found"}'
+  rHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: cHttps
+    Properties:
+      LoadBalancerArn: !Ref rLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: !Ref pSslPolicy
+      Certificates:
+        - CertificateArn: !Ref pCertificateArn
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: "404"
+            ContentType: application/json
+            MessageBody: '{"error":"Not Found"}'
+Outputs:
+  LoadBalancerArn:
+    Description: ARN of the load balancer
+    Value: !Ref rLoadBalancer
+    Export:
+      Name: !Sub ${AWS::StackName}:LoadBalancerArn
+  DnsName:
+    Description: DNS name of the load balancer (target of the Cloudflare record)
+    Value: !GetAtt rLoadBalancer.DNSName
+    Export:
+      Name: !Sub ${AWS::StackName}:DnsName
+  HostedZoneId:
+    Description: Canonical hosted zone ID of the load balancer
+    Value: !GetAtt rLoadBalancer.CanonicalHostedZoneID
+    Export:
+      Name: !Sub ${AWS::StackName}:HostedZoneId
+  HttpListenerArn:
+    Description: ARN of the HTTP listener
+    Value: !Ref rHttpListener
+    Export:
+      Name: !Sub ${AWS::StackName}:HttpListenerArn
+  HttpsListenerArn:
+    Condition: cHttps
+    Description: ARN of the HTTPS listener (only when a certificate is configured)
+    Value: !Ref rHttpsListener
+    Export:
+      Name: !Sub ${AWS::StackName}:HttpsListenerArn
+  StackContact:
+    Value: !Ref pDeveloper

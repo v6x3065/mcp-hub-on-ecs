@@ -25,6 +25,31 @@ log_retention_days = 7
 # auth_token = "your-secret-token-here"
 
 # ============================================================================
+# Access Control
+# ============================================================================
+# ALB inbound allow-list (ports 80/443). Empty = ALB unreachable.
+# Use Cloudflare origin ranges (https://www.cloudflare.com/ips/) plus test client IPs.
+# alb_ingress_cidrs = ["203.0.113.10/32"]
+
+# Target roles the ECS task role may assume (output of cfn/mcp-cross-account-role.yaml).
+# Empty = no cross-account access.
+# assume_role_target_arns = ["arn:aws-cn:iam::<target-account-id>:role/McpCrossAccountReadOnly"]
+
+# Same-account queries (task role gets ReadOnlyAccess). Off by default.
+# attach_same_account_readonly = false
+
+# Server-side account allow-list (alias -> role). Needs a fork build that enforces it.
+# aws_api_account_allowlist = "{\"pilot\":{\"role_arn\":\"arn:aws-cn:iam::<target-account-id>:role/McpCrossAccountReadOnly\"}}"
+
+# Allowed Host/Origin for aws-api (set to the Cloudflare-fronted domain once known).
+# mcp_allowed_hosts = "mcp.example.com"
+
+# Server-side JWT validation (e.g. Entra ID). Default "no-auth" relies on the ALB token.
+# mcp_auth_type     = "oauth"
+# mcp_auth_issuer   = "https://login.microsoftonline.com/<tenant-id>/v2.0"
+# mcp_auth_jwks_uri = "https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys"
+
+# ============================================================================
 # MCP Services Configuration
 # ============================================================================
 # Simple enable/disable controls for MCP services

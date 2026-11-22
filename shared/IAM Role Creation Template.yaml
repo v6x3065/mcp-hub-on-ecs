@@ -1,0 +1,176 @@
+####################################################################################
+# Description:                                                                     #
+# This is the template policy for CFC IAM policy related operation task.           #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default value
+#        *PolicyName; GroupName; Developer; CodeReviewer
+#     3, Each resource's description                                               #                           
+#     4, Update Policy detail                                                      #
+#     5, Update Output                                                             #
+####################################################################################
+
+#Update 1: please update the change information
+  #CR: ____________
+  #Change request purpose: ___________________________________________________
+  #__________________________________________________________________________________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China Operatoin Code for IAM Policy
+# Update 2: Parameter descirption and default value
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Role and Policy Info.
+        Parameters:
+          - pRoleName
+          - pPolicyName
+      -
+        Label:
+          default: Developer and Reviwer
+        Parameters:
+          - pDeveloper
+          - pReviewer
+
+Parameters:
+  pRoleName:
+    Description: Pls add the Role name
+    Type: String
+    Default: ""
+  pPolicyName:
+    Description: Please add the impact Policy name
+    Type: String
+    #Update 2: please update the policy default name
+    Default: ""
+  # pGroupName:
+  #   Description: Please add the Group Name, Support multiple groups
+  #   Type: CommaDelimitedList
+  #   #Update 2: please update the group name, multiple groups shall be split by ","
+  #   Default: 
+  pApplNameTag:            
+    Description: Application Name Tag Value
+    Type: String
+    Default: "" 
+  pAdminTeamTag:            
+    Description: Admin Team Tag Value
+    Type: String
+    Default: "GISS"   
+  pApplicationCiTag:                
+    Description: Application Ci Tag Value
+    Type: String
+    Default: "NA" 
+  pPrimaryItContactTag:            
+    Description: Primary IT Contact Tag Value
+    Type: String
+    Default: "cn_it_infra_cloud_ops@lists.lilly.com" 
+  pSNOWRequestIdTag:            
+    Description: Snow Request Id Tag Value
+    Type: String
+    Default: "" 
+  pSystemOwnerTag:          
+    Description: System Owner Tag Value
+    Type: String
+    Default: "" 
+  pSystemCustodianTag:           
+    Description: SystemCustodian Tag Value
+    Type: String
+    Default: "" 
+  pCostCenterTag:                 
+    Description: CostCenter Tag Value
+    Type: String
+    Default: "" 
+  pMLPSTag:                   
+    Description: MLPS Tag Value
+    Type: String
+    Default: "" 
+  pEnvironmentTag:                
+    Description: Environment Tag Value
+    Type: String
+    Default: "DEV" 
+  pDataClassificationTag:         
+    Description: Data Classification Tag Value
+    Type: String
+    Default: "" 
+  pBusinessAreaTag:        
+    Description:  Business Area Tag Value
+    Type: String
+    Default: "Commercial" 
+  pLevel1BusinessAreaTag:        
+    Description:  Level 1 Business Area Tag Value
+    Type: String
+    Default: "IBU"
+  pDeveloper:
+    Description: Code developer
+    Type: String
+    #Update 2: please add your name
+    Default: 
+    AllowedValues: 
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+  pReviewer: 
+    Description: Code Reviewer
+    Type: String
+    #Update 2: please add the reviwer name in below
+    Default: 
+    AllowedValues: 
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+Resources:
+  rLambdaIAMRoleName:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref pRoleName
+      PermissionsBoundary: !Sub 'arn:aws-cn:iam::${AWS::AccountId}:policy/IAM-China-Boundary'
+      Tags:
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:    # Pls change to correct service name need to trust relationships with this role
+                - lambda.amazonaws.com      
+            Action:
+              - sts:AssumeRole
+      Policies:
+      - PolicyName: !Ref pPolicyName
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - 
+            Effect: Allow
+            Action:          # Pls change to correct action lists
+              - ec2:DescribeNetworkInterfaces
+            Resource: ""

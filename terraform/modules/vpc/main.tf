@@ -5,14 +5,8 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-# Data source to get current IP for security group
-data "http" "myip" {
-  url = "http://ipv4.icanhazip.com"
-}
-
 locals {
-  my_ip = "${chomp(data.http.myip.response_body)}/32"
-  azs   = slice(data.aws_availability_zones.available.names, 0, 2)
+  azs = slice(data.aws_availability_zones.available.names, 0, 2)
 }
 
 # VPC
@@ -158,22 +152,16 @@ resource "aws_security_group" "alb" {
   description = "Security group for Application Load Balancer"
   vpc_id      = aws_vpc.main.id
 
-  # Allow inbound HTTP from my IP only
-  ingress {
-    description = "HTTP from my IP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = [local.my_ip]
-  }
-
-  # Allow inbound HTTPS from my IP only
-  ingress {
-    description = "HTTPS from my IP"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [local.my_ip]
+  # Inbound HTTP/HTTPS only from the allowed CIDRs (e.g. Cloudflare origin ranges)
+  dynamic "ingress" {
+    for_each = length(var.alb_ingress_cidrs) > 0 ? [80, 443] : []
+    content {
+      description = "Allowed clients on port ${ingress.value}"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = var.alb_ingress_cidrs
+    }
   }
 
   # Allow all outbound traffic

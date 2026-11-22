@@ -1,0 +1,136 @@
+####################################################################################
+# Description:                                                                     #
+# This is the template policy for CFC IAM policy related operation task.           #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2?Parameter Default value
+#        *PolicyName; GroupName; Developer; CodeReviewer
+#     3, Each resource's description                                               #                           
+#     4, Update Policy detail                                                      #
+#     5, Update Output                                                             #
+####################################################################################
+
+#Update 1: please update the change information
+  #CR: _CHG2123971_____
+  #Change request purpose: __[EIP]Create One IAM Policy for EIP KMS Access in Dev Env________________________________________________________
+  #_____________________________________________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China Operatoin Code for IAM Policy
+# Update 2: Parameter descirption and default value
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Policy and Group Info.
+        Parameters:
+          - pPolicyName
+          - pGroupName
+      -
+        Label:
+          default: Developer and Reviwer
+        Parameters:
+          - pDeveloper
+          - pReviewer
+
+Parameters:
+  pPolicyName:
+    Description: Please add the impact Policy name
+    Type: String
+    #Update 2: please update the policy default name
+    Default: "lly-nw-sha-eipkmsaccess-d-iamp-01"
+  pGroupName:
+    Description: Please add the Group Name, Support multiple groups
+    Type: CommaDelimitedList
+    #Update 2: please update the group name, multiple groups shall be split by ","
+    Default: dev-eip-kms-access
+  pDeveloper:
+    Description: Code developer
+    Type: String
+    #Update 2: please add your name
+    Default: Guoshu.Wan
+    AllowedValues: 
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+  pReviewer: 
+    Description: Code Reviewer
+    Type: String
+    #Update 2: please add the reviwer name in below
+    Default: Simon.Xu
+    AllowedValues: 
+      - Nik.Ni
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+Resources:
+  rIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      # Update 3: please update resource description
+      Description: "EIP KMS Access"
+      ManagedPolicyName: !Ref pPolicyName
+      Path: "/"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Update 4: pleae update the Sid according the policy purpose
+          - 
+            Condition:
+              StringEquals:
+                'kms:ViaService':
+                  - secretsmanager.cn-northwest-1.amazonaws.com
+                'kms:CallerAccount':
+                  - '820607692027'
+              'ForAnyValue:StringLike':
+                'kms:ResourceAliases':
+                  - alias/awskms-scrtmgr-eip*
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:GenerateDataKey*'
+              - 'kms:ReEncrypt*'
+              - 'kms:DescribeKey'
+              - 'kms:CreateGrant'
+            Resource: '*'
+            Effect: Allow
+          - Sid: SecretsmanagerAllowforResource
+            Action:
+              - 'secretsmanager:GetResourcePolicy'
+              - 'secretsmanager:GetSecretValue'
+              - 'secretsmanager:ListSecretVersionIds'
+              - 'secretsmanager:DescribeSecret'
+              - 'secretsmanager:RotateSecret'
+            Resource: 
+              - 'arn:aws-cn:secretsmanager:cn-northwest-1:820607692027:secret:awsrds-gdm-aurora-pgsql-local*'
+              - 'arn:aws-cn:secretsmanager:cn-northwest-1:820607692027:secret:awsrds-gdm-mssql-local*'
+            Effect: Allow
+          - Sid: SecretsmanagerDenyforResource
+            Action:
+              - 'secretsmanager:DeleteResourcePolicy'
+              - 'secretsmanager:GetResourcePolicy'
+              - 'secretsmanager:DeleteSecret'
+              - 'secretsmanager:PutResourcePolicy'
+              - 'secretsmanager:PutSecretValue'
+            Resource: 
+              - 'arn:aws-cn:secretsmanager:cn-northwest-1:820607692027:secret:awsrds-gdm-aurora-pgsql-local*'
+              - 'arn:aws-cn:secretsmanager:cn-northwest-1:820607692027:secret:awsrds-gdm-mssql-local*'
+            Effect: Deny
+          - Sid: SecretsmanagerAllowforListSecrets #Add ListSecrets to Users for individual account and Service-Account
+            Action:
+              - secretsmanager:ListSecrets
+            Resource: '*'
+            Effect: Allow
+      Groups: 
+        !Ref pGroupName
+
+Outputs:
+  # Update 5: please update the output name and value
+  ManagedPolicyForEIPKMSACCESS:
+    Value: !Ref rIAMPolicy
+  StackContact:
+    Value: !Ref pDeveloper
+    

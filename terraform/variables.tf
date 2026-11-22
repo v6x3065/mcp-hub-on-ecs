@@ -29,6 +29,78 @@ variable "log_retention_days" {
 }
 
 # ============================================================================
+# Access Control
+# ============================================================================
+
+variable "alb_ingress_cidrs" {
+  type        = list(string)
+  description = <<-EOT
+    CIDR blocks allowed to reach the ALB on ports 80/443 (e.g. Cloudflare origin ranges
+    and your test client IPs). Empty list = no inbound rules, so the ALB is unreachable.
+  EOT
+  default     = []
+}
+
+variable "assume_role_target_arns" {
+  type        = list(string)
+  description = <<-EOT
+    Approved target role ARNs the ECS task role may assume (cross-account read-only roles,
+    e.g. "arn:aws-cn:iam::<account-id>:role/McpCrossAccountReadOnly").
+    Empty list = the task role cannot assume any role.
+  EOT
+  default     = []
+}
+
+variable "attach_same_account_readonly" {
+  type        = bool
+  description = "Attach AWS managed ReadOnlyAccess to the task role so MCP can query the deployment account itself."
+  default     = false
+}
+
+variable "aws_api_account_allowlist" {
+  type        = string
+  description = <<-EOT
+    JSON map of account alias to target role, passed to aws-api as AWS_API_MCP_ACCOUNT_ALLOWLIST, e.g.
+    {"prod-core":{"role_arn":"arn:aws-cn:iam::111122223333:role/McpCrossAccountReadOnly"}}
+    Only enforced by a fork build that implements the allowlist; stock images ignore it.
+  EOT
+  default     = ""
+}
+
+variable "mcp_allowed_hosts" {
+  type        = string
+  description = "Allowed Host header / Origin value(s) for the aws-api server (e.g. the Cloudflare-fronted domain). \"*\" disables the check."
+  default     = "*"
+}
+
+# ============================================================================
+# MCP Server Authentication (server-side)
+# ============================================================================
+
+variable "mcp_auth_type" {
+  type        = string
+  description = "aws-api server auth: \"no-auth\" (rely on the ALB token) or \"oauth\" (validate JWTs, e.g. Entra ID)"
+  default     = "no-auth"
+
+  validation {
+    condition     = contains(["no-auth", "oauth"], var.mcp_auth_type)
+    error_message = "mcp_auth_type must be \"no-auth\" or \"oauth\"."
+  }
+}
+
+variable "mcp_auth_issuer" {
+  type        = string
+  description = "JWT issuer (AUTH_ISSUER); required when mcp_auth_type = \"oauth\""
+  default     = ""
+}
+
+variable "mcp_auth_jwks_uri" {
+  type        = string
+  description = "JWKS URI (AUTH_JWKS_URI); required when mcp_auth_type = \"oauth\""
+  default     = ""
+}
+
+# ============================================================================
 # Authentication
 # ============================================================================
 
@@ -107,16 +179,28 @@ locals {
       health_check_path = "/"
       require_auth   = true
       skip_rewrite   = false
-      environment_vars = {
-        AWS_REGION                  = var.region
-        AWS_API_MCP_TRANSPORT       = "streamable-http"
-        AWS_API_MCP_STATELESS_HTTP  = "true"
-        AWS_API_MCP_HOST            = "0.0.0.0"
-        AWS_API_MCP_PORT            = "8000"
-        AWS_API_MCP_ALLOWED_HOSTS   = "*"
-        AWS_API_MCP_ALLOWED_ORIGINS = "*"
-        AUTH_TYPE                   = "no-auth"
-      }
+      environment_vars = merge(
+        {
+          AWS_REGION                       = var.region
+          AWS_API_MCP_TRANSPORT            = "streamable-http"
+          AWS_API_MCP_STATELESS_HTTP       = "true"
+          AWS_API_MCP_HOST                 = "0.0.0.0"
+          AWS_API_MCP_PORT                 = "8000"
+          AWS_API_MCP_ALLOWED_HOSTS        = var.mcp_allowed_hosts
+          AWS_API_MCP_ALLOWED_ORIGINS      = var.mcp_allowed_hosts
+          AWS_API_MCP_ENABLE_CROSS_ACCOUNT = "true"
+          AWS_API_MCP_TELEMETRY            = "false"
+          READ_OPERATIONS_ONLY             = "true"
+          AUTH_TYPE                        = var.mcp_auth_type
+        },
+        var.mcp_auth_type == "oauth" ? {
+          AUTH_ISSUER   = var.mcp_auth_issuer
+          AUTH_JWKS_URI = var.mcp_auth_jwks_uri
+        } : {},
+        var.aws_api_account_allowlist != "" ? {
+          AWS_API_MCP_ACCOUNT_ALLOWLIST = var.aws_api_account_allowlist
+        } : {}
+      )
     }
     
     aws-doc = {

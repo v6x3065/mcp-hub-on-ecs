@@ -1,0 +1,212 @@
+####################################################################################
+# Description:                                                                     #
+# GitHub Actions OIDC role of the aws-mcp image pipeline (push to ECR only).       #
+# Trusts the account's existing GitHub OIDC provider for one repository.           #
+# The role carries IAM-China-Boundary.                                             #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values (pGitHubRepo is a placeholder until the repo     #
+#        under the EliLillyCo organization is created)                             #
+#     3, Tag Parameter Default values (keep identical to infra/standards/tags.yaml) #
+####################################################################################
+#Update 1: please update the change information
+  #CR: ___NA_________
+  #Change request purpose: ______aws-mcp: GitHub Actions OIDC role____________
+  #Developer: __Jack.Shen___________
+  #Reviewer: __Simon.Xu___________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China CloudOps Code for aws-mcp IAM Role
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Role Info.
+        Parameters:
+          - pRoleName
+          - pBoundaryPolicyName
+          - pGitHubOrg
+          - pGitHubRepo
+      -
+        Label:
+          default: Upstream Stacks
+        Parameters:
+          - pPolicyStackName
+      -
+        Label:
+          default: Tags
+        Parameters:
+          - pApplNameTag
+          - pAdminTeamTag
+          - pApplicationCiTag
+          - pPrimaryItContactTag
+          - pSNOWRequestIdTag
+          - pSystemOwnerTag
+          - pSystemCustodianTag
+          - pCostCenterTag
+          - pMLPSTag
+          - pEnvironmentTag
+          - pDataClassificationTag
+          - pBusinessAreaTag
+          - pLevel1BusinessAreaTag
+      -
+        Label:
+          default: Developer and Reviewer
+        Parameters:
+          - pDeveloper
+          - pReviewer
+#Update 2: please update all Parameter Default values
+Parameters:
+  pRoleName:
+    Description: Name of the role
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-github-action-d-iamr-01"
+  pBoundaryPolicyName:
+    Description: Name of the permissions boundary policy in this account
+    Type: String
+    Default: "IAM-China-Boundary"
+  pGitHubOrg:
+    Description: GitHub organization allowed to assume the role
+    Type: String
+    Default: "EliLillyCo"
+  pGitHubRepo:
+    Description: GitHub repository allowed to assume the role (placeholder until the repository exists)
+    Type: String
+    Default: "TBD-aws-mcp"
+  pPolicyStackName:
+    Description: Stack that exports the ECR push policy (PolicyArn)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-github-action-d-iamp-01"
+#Update 3: please update Tag Parameter Default values
+  pApplNameTag:
+    Description: Application Name Tag Value
+    Type: String
+    Default: "aws-mcp"
+  pAdminTeamTag:
+    Description: Admin Team Tag Value
+    Type: String
+    Default: "GISS"
+  pApplicationCiTag:
+    Description: Application Ci Tag Value
+    Type: String
+    Default: "CI00000000000000"
+  pPrimaryItContactTag:
+    Description: Primary IT Contact Tag Value
+    Type: String
+    Default: "cn_it_infra_cloud_ops@lists.lilly.com"
+  pSNOWRequestIdTag:
+    Description: Snow Request Id Tag Value
+    Type: String
+    Default: "NA"
+  pSystemOwnerTag:
+    Description: System Owner Tag Value
+    Type: String
+    Default: "xu_ming_ming@lilly.com"
+  pSystemCustodianTag:
+    Description: SystemCustodian Tag Value
+    Type: String
+    Default: "shen_jun_jack@lilly.com"
+  pCostCenterTag:
+    Description: CostCenter Tag Value
+    Type: String
+    Default: "5205060"
+  pMLPSTag:
+    Description: MLPS Tag Value
+    Type: String
+    Default: "No"
+  pEnvironmentTag:
+    Description: Environment Tag Value
+    Type: String
+    Default: "DEV"
+  pDataClassificationTag:
+    Description: Data Classification Tag Value
+    Type: String
+    Default: "Yellow"
+  pBusinessAreaTag:
+    Description: Business Area Tag Value
+    Type: String
+    Default: "Commercial"
+  pLevel1BusinessAreaTag:
+    Description: Level 1 Business Area Tag Value
+    Type: String
+    Default: "IBU"
+  pDeveloper:
+    Description: Code developer
+    Type: String
+    Default: Jack.Shen
+    AllowedValues:
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+  pReviewer:
+    Description: Code Reviewer
+    Type: String
+    Default: Simon.Xu
+    AllowedValues:
+      - Nik.Ni
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+Resources:
+  rIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref pRoleName
+      Description: aws-mcp GitHub Actions role (push images to ECR)
+      PermissionsBoundary: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${pBoundaryPolicyName}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+              StringLike:
+                'token.actions.githubusercontent.com:sub': !Sub repo:${pGitHubOrg}/${pGitHubRepo}:*
+      ManagedPolicyArns:
+        - Fn::ImportValue: !Sub '${pPolicyStackName}:PolicyArn'
+      Tags:
+        - Key: "Name"
+          Value: !Ref pRoleName
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag
+Outputs:
+  RoleArn:
+    Description: ARN of the GitHub Actions role
+    Value: !GetAtt rIAMRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}:RoleArn
+  StackContact:
+    Value: !Ref pDeveloper

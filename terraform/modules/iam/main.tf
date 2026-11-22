@@ -98,17 +98,63 @@ data "aws_iam_policy_document" "task_assume_role" {
   }
 }
 
-# Attach AWS managed ReadOnlyAccess policy for MCP server
-# This provides read-only access to AWS services for the MCP server
+# Optional same-account read access. Off by default: Pilot queries go through
+# cross-account target roles, so the task role itself needs no resource reads.
 resource "aws_iam_role_policy_attachment" "task_readonly" {
+  count = var.attach_same_account_readonly ? 1 : 0
+
   role       = aws_iam_role.task.name
   policy_arn = "arn:aws-cn:iam::aws:policy/ReadOnlyAccess"
+}
+
+# Explicit deny on data-plane reads (secrets, object content, item data, code
+# download URLs). Keep in sync with the Deny statement in cfn/mcp-cross-account-role.yaml.
+resource "aws_iam_role_policy" "task_deny_data_reads" {
+  name   = "${var.project_name}-${var.environment}-task-deny-data-reads"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_deny_data_reads.json
+}
+
+data "aws_iam_policy_document" "task_deny_data_reads" {
+  statement {
+    effect = "Deny"
+
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:BatchGetSecretValue",
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:GetParametersByPath",
+      "ssm:GetParameterHistory",
+      "kms:Decrypt",
+      "dynamodb:GetItem",
+      "dynamodb:BatchGetItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+      "sqs:ReceiveMessage",
+      "kinesis:GetRecords",
+      "athena:GetQueryResults",
+      "lambda:GetFunction",
+      "lambda:GetLayerVersion",
+      "ecr:GetAuthorizationToken",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage"
+    ]
+
+    resources = ["*"]
+  }
 }
 
 # ============================================================================
 # Cross-Account Assume Role Policy
 # ============================================================================
+# The task role may only assume the approved target roles listed in
+# assume_role_target_arns. No policy is created when the list is empty.
 resource "aws_iam_role_policy" "task_cross_account" {
+  count = length(var.assume_role_target_arns) > 0 ? 1 : 0
+
   name   = "${var.project_name}-${var.environment}-task-cross-account"
   role   = aws_iam_role.task.id
   policy = data.aws_iam_policy_document.task_cross_account.json
@@ -122,6 +168,6 @@ data "aws_iam_policy_document" "task_cross_account" {
       "sts:AssumeRole"
     ]
 
-    resources = ["*"]
+    resources = var.assume_role_target_arns
   }
 }

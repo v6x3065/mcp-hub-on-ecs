@@ -11,12 +11,26 @@ Parameters:
     Type: String
     Default: McpCrossAccountReadOnly
     Description: Name of the role to create
+  ExternalId:
+    Type: String
+    Default: ''
+    Description: Optional sts:ExternalId required on AssumeRole (leave empty to disable)
+  MaxSessionDuration:
+    Type: Number
+    Default: 3600
+    MinValue: 3600
+    MaxValue: 43200
+    Description: Maximum session duration in seconds
+
+Conditions:
+  HasExternalId: !Not [!Equals [!Ref ExternalId, '']]
 
 Resources:
   McpCrossAccountRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Ref RoleName
+      MaxSessionDuration: !Ref MaxSessionDuration
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -24,8 +38,44 @@ Resources:
             Principal:
               AWS: !Ref McpTaskRoleArn
             Action: sts:AssumeRole
+            Condition: !If
+              - HasExternalId
+              - StringEquals:
+                  sts:ExternalId: !Ref ExternalId
+              - !Ref AWS::NoValue
       ManagedPolicyArns:
         - arn:aws-cn:iam::aws:policy/ReadOnlyAccess
+      Policies:
+        # Deny data-plane reads (secrets, object content, item data, code download URLs).
+        # Keep in sync with task_deny_data_reads in terraform/modules/iam/main.tf.
+        - PolicyName: DenyDataReads
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Deny
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:BatchGetSecretValue
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                  - ssm:GetParameterHistory
+                  - kms:Decrypt
+                  - dynamodb:GetItem
+                  - dynamodb:BatchGetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - sqs:ReceiveMessage
+                  - kinesis:GetRecords
+                  - athena:GetQueryResults
+                  - lambda:GetFunction
+                  - lambda:GetLayerVersion
+                  - ecr:GetAuthorizationToken
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: '*'
 
 Outputs:
   RoleArn:

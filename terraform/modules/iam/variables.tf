@@ -21,3 +21,15 @@ variable "tags" {
   description = "Common tags for all resources"
   default     = {}
 }
+
+variable "assume_role_target_arns" {
+  type        = list(string)
+  description = "Target role ARNs the task role may assume (cross-account read-only roles)"
+  default     = []
+}
+
+variable "attach_same_account_readonly" {
+  type        = bool
+  description = "Attach the AWS managed ReadOnlyAccess policy to the task role for same-account queries"
+  default     = false
+}
