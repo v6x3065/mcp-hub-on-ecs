@@ -1,7 +1,7 @@
 name: Build aws-mcp image
 
 # Builds one MCP server image from the fork, pushes it to the ECR repository owned by the
-# infra stacks and prints the tag to put into pImageTag of the matching ecssvc template.
+# ECR stacks and prints the tag to put into pImageTag of the matching ecssvc template.
 # The pipeline never deploys: release = PR changing pImageTag (and pDesiredCount, first time).
 
 on:
@@ -89,6 +89,6 @@ jobs:
             echo "\`${ECR_REGISTRY}/${{ steps.svc.outputs.repo }}:${{ steps.tag.outputs.tag }}\`"
             echo ""
             echo "Release: set \`pImageTag\` to \`${{ steps.tag.outputs.tag }}\` in"
-            echo "\`infra/templates/ECS/AWSMCP/lly-nw-cloudops-awsmcp-d-${{ steps.svc.outputs.template }}.yaml\`"
+            echo "\`templates/ECS/AWSMCP/lly-nw-cloudops-awsmcp-d-${{ steps.svc.outputs.template }}.yaml\`"
             echo "(first release also \`pDesiredCount\` >= 1) and open a PR."
           } >> "$GITHUB_STEP_SUMMARY"

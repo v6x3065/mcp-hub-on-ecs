@@ -3,7 +3,7 @@
 状态：**设计已确认，待启动开发**（不含部署）
 适用：AWS 中国 `cn-northwest-1`，dev2 账号，环境字母 `d`（DEV）
 
-已确认决策：命名前缀 `lly-nw-cloudops-awsmcp`；复用已有 VPC/子网；CFN 代码统一放在 `infra/` 目录；模板开发完成后**拷贝 `infra/templates/` 到 `Foundation/dev2` 分支**由中央 CI 部署；类型缩写（`ecr/cwlg/alb/tg/ecs/ecssvc/pl`）接受；标签值按 §4 建议值。`terraform/` 先保留作对照，CFN 完成后删除。
+已确认决策：命名前缀 `lly-nw-cloudops-awsmcp`；复用已有 VPC/子网；CFN 代码放在仓库根目录 `templates/`（已去掉 `infra/` 层，旧内容归档到 `archive/`）；模板开发完成后**拷贝 `templates/` 到 `Foundation/dev2` 分支**由中央 CI 部署；类型缩写（`ecr/cwlg/alb/tg/ecs/ecssvc/pl`）接受；标签值按 §4 建议值。`terraform/` 先保留作对照，CFN 完成后删除。
 
 ## 1. 目标
 
@@ -71,7 +71,7 @@ lly-nw-cloudops-awsmcp[-<角色>]-d-<类型>-<NN>
 | pBusinessAreaTag | BusinessArea | `Commercial` | CloudOps 自有项目同值 |
 | pLevel1BusinessAreaTag | Level1BusinessArea | `IBU` | CloudOps 自有项目同值 |
 
-一致性由校验脚本保证（见 §8），标签值的唯一来源是 `infra/standards/tags.yaml`，不手工维护。
+一致性由校验脚本保证（见 §8），标签值的唯一来源是 `standards/tags.yaml`，不手工维护。
 
 头部 `pDeveloper` / `pReviewer` 的 Default：`Jack.Shen` / `Simon.Xu`（沿用参考项目 AllowedValues 清单中的人员；Simon.Xu 是参考项目 CODEOWNER，可随时改）。
 
@@ -99,7 +99,7 @@ lly-nw-cloudops-awsmcp[-<角色>]-d-<类型>-<NN>
 
 ## 7. 堆栈清单、依赖与发布分层
 
-目录沿用参考项目的 `templates/<类型>/<应用>/`，放在本仓库 `infra/` 下，应用目录名 `AWSMCP`；下表目录均相对于 `infra/templates/`。
+目录沿用参考项目的 `templates/<类型>/<应用>/`，放在本仓库根目录，应用目录名 `AWSMCP`；下表目录均相对于 `templates/`。
 
 | 层 | 堆栈（文件名即堆栈名，省略共同前缀 `lly-nw-cloudops-awsmcp`） | 目录 | 导入 | 导出 |
 |----|----|----|----|----|
@@ -131,39 +131,37 @@ lly-nw-cloudops-awsmcp[-<角色>]-d-<类型>-<NN>
 
 ## 8. 仓库结构（目标）
 
-CFN 相关代码全部放在 `infra/` 下，应用交付（镜像构建）和文档在 `infra/` 之外。**拷贝到 Foundation/dev2 时只拷贝 `infra/templates/`**。
+仓库根目录与分层目录只放用 CloudFormation 堆栈部署的资源代码，布局与 `Foundation/dev2` 一致；不再使用的内容统一放在 `archive/`。**拷贝到 Foundation/dev2 时只拷贝 `templates/`（及需要时 `config.yml`）**。
 
 ```
 mcp-hub-on-ecs/
-├── infra/
-│   ├── config.yml                              # 沿用参考格式：role / region / s3Bucket（dev2）
-│   ├── standards/
-│   │   ├── tags.yaml                           # 标签唯一来源
-│   │   └── naming.md                           # 命名与类型缩写（本文 §3 的拆分版）
-│   ├── templates/
-│   │   ├── KMS/AWSMCP/
-│   │   ├── Secrets_Manager/AWSMCP/
-│   │   ├── Security_Group/AWSMCP/
-│   │   ├── IAM/AWSMCP/
-│   │   ├── IAM/AWSMCP-TargetAccount/           # 部署到“目标账号”，不在 dev2 部署
-│   │   ├── ECR/AWSMCP/
-│   │   ├── CloudWatch_Logs/AWSMCP/
-│   │   ├── ALB/AWSMCP/
-│   │   └── ECS/AWSMCP/
-│   └── scripts/
-│       └── validate_standards.py               # 新增：本地校验（见下）
-├── .github/workflows/build-image.yml           # 新增：镜像构建推送（见 §13）
-├── scripts/build-and-deploy-aws-*.sh           # 保留作本地/应急构建；仓库名改为对应 ecr 堆栈的资源名
-├── terraform/                                  # 暂留作对照，CFN 开发完成后删除
-├── cfn/                                        # 旧的目标账号角色，迁入 infra/templates 后删除
-└── docs/superpowers/specs/                     # 本文
+├── config.yml                                  # 沿用参考格式：role / region / s3Bucket（dev2，待拷贝时确认）
+├── templates/                                  # 全部堆栈，templates/<类型>/<应用>/<堆栈名>.yaml
+│   ├── KMS/AWSMCP/
+│   ├── Secrets_Manager/AWSMCP/
+│   ├── Security_Group/AWSMCP/
+│   ├── IAM/AWSMCP/
+│   ├── IAM/AWSMCP-TargetAccount/               # 部署到“目标账号”，不在 dev2 部署
+│   ├── ECR/AWSMCP/
+│   ├── CloudWatch_Logs/AWSMCP/
+│   ├── ALB/AWSMCP/
+│   └── ECS/AWSMCP/
+├── standards/                                  # tags.yaml（标签唯一来源）、naming.md
+├── scripts/validate_standards.py               # 本地校验（见下）
+├── .github/workflows/build-image.yml           # 镜像构建推送（见 §13）
+├── docs/                                       # 设计文档（本文）
+├── README.md
+└── archive/                                    # 历史内容，不参与部署
+    ├── terraform/  cfn/  shared/               # 旧 Terraform、旧目标账号角色、Lilly 通用模板参考
+    ├── scripts/                                # 旧本地构建脚本（已被 workflow 取代）
+    └── README-terraform.md  架构图/设计稿（drawio、HTML、png）
 ```
 
-`validate_standards.py` 检查（可接入 PR 校验）：文件名 = 堆栈名 = 主资源名参数 Default；13 个标签参数的 Default 与 `infra/standards/tags.yaml` 一致；无空 Default；路径无空格；每个 Output 带 Export 且导出名符合 `<堆栈名>:<输出名>`；Role 带 Boundary；ImportValue 的上游堆栈名参数存在对应文件。
+`validate_standards.py` 检查（可接入 PR 校验）：文件名 = 堆栈名 = 主资源名参数 Default；13 个标签参数的 Default 与 `standards/tags.yaml` 一致；无空 Default；路径无空格；每个 Output 带 Export 且导出名符合 `<堆栈名>:<输出名>`；Role 带 Boundary；ImportValue 的上游堆栈名参数存在对应文件。
 
 ## 9. 目标账号角色
 
-- 位于 `infra/templates/IAM/AWSMCP-TargetAccount/`，在**目标账号**的对应 CI/分支部署，不走 dev2
+- 位于 `templates/IAM/AWSMCP-TargetAccount/`，在**目标账号**的对应 CI/分支部署，不走 dev2
 - 信任 dev2 的 task role：参数 `pSourceAccountId`（dev2 账号 ID）+ `pTaskRoleName`（Default = task role 文件名）→ 拼出 ARN；可选 `pExternalId`（`NA` = 不启用）
 - task role 侧的 `sts:AssumeRole` 允许范围由 `-ecs-task-d-iamp-01` 的参数 `pTargetRoleArns` 决定：用 **账号 ID + 固定角色名拼 ARN**，不需要目标角色已存在，所以**不会再出现 Terraform 方案里“先 apply、再建角色、再 apply”的循环依赖**
 - 权限：`ReadOnlyAccess` + 显式 Deny 数据读取（沿用上一轮实现），Role 同样带 Boundary
@@ -178,7 +176,7 @@ mcp-hub-on-ecs/
 | `modules/alb`（ALB、监听器、TG、规则、改写、令牌） | `-d-alb-01`、`-d-tg-01/02`、`-d-sm-01` |
 | `modules/ecs` | `-d-ecs-01`、`-d-ecssvc-01/02`、`-d-cwlg-01/02` |
 | 构建脚本创建的 ECR | `-d-ecr-01/02`（新增 KMS、不可变 tag） |
-| `cfn/mcp-cross-account-role.yaml` | `infra/templates/IAM/AWSMCP-TargetAccount/` 下两个堆栈 |
+| `archive/cfn/mcp-cross-account-role.yaml` | `templates/IAM/AWSMCP-TargetAccount/` 下两个堆栈 |
 | 新增 | `-d-kms-01`（日志/ECR/密钥共用 CMK，满足 C8） |
 
 ## 11. 需确认的假设与风险

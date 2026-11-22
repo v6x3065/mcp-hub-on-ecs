@@ -1,0 +1,384 @@
+####################################################################################
+# Description:                                                                     #
+# Target group + listener rules of the aws-mcp aws-documentation MCP server (instance 02).   #
+#   <pPathPrefix>/*  ->  rewrite to /*  ->  target group (container port)          #
+# When pRequireAuth = true the rule only matches requests with the bearer token    #
+# (Authorization: "Bearer <token>" or "<token>"), resolved from Secrets Manager;   #
+# a lower-priority rule answers 401 for the same path without the token.           #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values                                                  #
+#     3, Tag Parameter Default values (keep identical to standards/tags.yaml) #
+####################################################################################
+#Update 1: please update the change information
+  #CR: ___NA_________
+  #Change request purpose: ______aws-mcp: target group and routing for aws-doc____________
+  #Developer: __Jack.Shen___________
+  #Reviewer: __Simon.Xu___________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China CloudOps Code for aws-mcp Target Group (aws-doc)
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Target Group Info.
+        Parameters:
+          - pTargetGroupName
+          - pVPC
+          - pContainerPort
+          - pHealthCheckPath
+          - pHealthCheckMatcher
+      -
+        Label:
+          default: Routing
+        Parameters:
+          - pPathPrefix
+          - pRulePriority
+          - pDenyRulePriority
+          - pRequireAuth
+          - pHttpsEnabled
+      -
+        Label:
+          default: Upstream Stacks
+        Parameters:
+          - pAlbStackName
+          - pTokenSecretStackName
+      -
+        Label:
+          default: Tags
+        Parameters:
+          - pApplNameTag
+          - pAdminTeamTag
+          - pApplicationCiTag
+          - pPrimaryItContactTag
+          - pSNOWRequestIdTag
+          - pSystemOwnerTag
+          - pSystemCustodianTag
+          - pCostCenterTag
+          - pMLPSTag
+          - pEnvironmentTag
+          - pDataClassificationTag
+          - pBusinessAreaTag
+          - pLevel1BusinessAreaTag
+      -
+        Label:
+          default: Developer and Reviewer
+        Parameters:
+          - pDeveloper
+          - pReviewer
+#Update 2: please update all Parameter Default values
+Parameters:
+  pTargetGroupName:
+    Description: Name of the target group (max 32 characters)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-tg-02"
+  pVPC:
+    Description: VPC ID (ChinaDevelopment-2VPC)
+    Type: "AWS::EC2::VPC::Id"
+    Default: "vpc-0c748129d3dc6da22"
+  pContainerPort:
+    Description: Container port
+    Type: Number
+    Default: 8000
+    MinValue: 1
+    MaxValue: 65535
+  pHealthCheckPath:
+    Description: Health check path on the container
+    Type: String
+    Default: "/"
+  pHealthCheckMatcher:
+    Description: HTTP codes treated as healthy
+    Type: String
+    Default: "200,404"
+  pPathPrefix:
+    Description: Path prefix routed to this service; stripped before forwarding
+    Type: String
+    Default: "/aws-doc"
+  pRulePriority:
+    Description: Priority of the forwarding rule (unique per listener)
+    Type: Number
+    Default: 200
+    MinValue: 1
+    MaxValue: 50000
+  pDenyRulePriority:
+    Description: Priority of the 401 rule (must be larger than pRulePriority)
+    Type: Number
+    Default: 201
+    MinValue: 1
+    MaxValue: 50000
+  pRequireAuth:
+    Description: Require the bearer token from the token secret
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+  pHttpsEnabled:
+    Description: Also create the rules on the HTTPS listener (only when the ALB stack has a certificate)
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  pAlbStackName:
+    Description: Stack that exports the listeners (HttpListenerArn, HttpsListenerArn)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-alb-01"
+  pTokenSecretStackName:
+    Description: Stack that exports the token secret (SecretName)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-sm-01"
+#Update 3: please update Tag Parameter Default values
+  pApplNameTag:
+    Description: Application Name Tag Value
+    Type: String
+    Default: "aws-mcp"
+  pAdminTeamTag:
+    Description: Admin Team Tag Value
+    Type: String
+    Default: "GISS"
+  pApplicationCiTag:
+    Description: Application Ci Tag Value
+    Type: String
+    Default: "CI00000000000000"
+  pPrimaryItContactTag:
+    Description: Primary IT Contact Tag Value
+    Type: String
+    Default: "cn_it_infra_cloud_ops@lists.lilly.com"
+  pSNOWRequestIdTag:
+    Description: Snow Request Id Tag Value
+    Type: String
+    Default: "NA"
+  pSystemOwnerTag:
+    Description: System Owner Tag Value
+    Type: String
+    Default: "xu_ming_ming@lilly.com"
+  pSystemCustodianTag:
+    Description: SystemCustodian Tag Value
+    Type: String
+    Default: "shen_jun_jack@lilly.com"
+  pCostCenterTag:
+    Description: CostCenter Tag Value
+    Type: String
+    Default: "5205060"
+  pMLPSTag:
+    Description: MLPS Tag Value
+    Type: String
+    Default: "No"
+  pEnvironmentTag:
+    Description: Environment Tag Value
+    Type: String
+    Default: "DEV"
+  pDataClassificationTag:
+    Description: Data Classification Tag Value
+    Type: String
+    Default: "Yellow"
+  pBusinessAreaTag:
+    Description: Business Area Tag Value
+    Type: String
+    Default: "Commercial"
+  pLevel1BusinessAreaTag:
+    Description: Level 1 Business Area Tag Value
+    Type: String
+    Default: "IBU"
+  pDeveloper:
+    Description: Code developer
+    Type: String
+    Default: Jack.Shen
+    AllowedValues:
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+  pReviewer:
+    Description: Code Reviewer
+    Type: String
+    Default: Simon.Xu
+    AllowedValues:
+      - Nik.Ni
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+Conditions:
+  cAuth: !Equals [!Ref pRequireAuth, 'true']
+  cHttps: !Equals [!Ref pHttpsEnabled, 'true']
+  cHttpsAuth: !And [!Condition cHttps, !Condition cAuth]
+Resources:
+  rTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Ref pTargetGroupName
+      TargetType: ip
+      Protocol: HTTP
+      Port: !Ref pContainerPort
+      VpcId: !Ref pVPC
+      HealthCheckPath: !Ref pHealthCheckPath
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: !Ref pHealthCheckMatcher
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "30"
+      Tags:
+        - Key: "Name"
+          Value: !Ref pTargetGroupName
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag
+  rHttpForwardRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - E3002 # Transforms (url-rewrite) is not yet in the cfn-lint schema; accepted by the service
+    Properties:
+      ListenerArn:
+        Fn::ImportValue: !Sub '${pAlbStackName}:HttpListenerArn'
+      Priority: !Ref pRulePriority
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - !Sub '${pPathPrefix}/*'
+        - !If
+          - cAuth
+          - Field: http-header
+            HttpHeaderConfig:
+              HttpHeaderName: Authorization
+              Values:
+                - Fn::Sub:
+                    - 'Bearer {{resolve:secretsmanager:${SecretName}:SecretString:token}}'
+                    - SecretName:
+                        Fn::ImportValue: !Sub '${pTokenSecretStackName}:SecretName'
+                - Fn::Sub:
+                    - '{{resolve:secretsmanager:${SecretName}:SecretString:token}}'
+                    - SecretName:
+                        Fn::ImportValue: !Sub '${pTokenSecretStackName}:SecretName'
+          - !Ref AWS::NoValue
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref rTargetGroup
+      Transforms:
+        - Type: url-rewrite
+          UrlRewriteConfig:
+            Rewrites:
+              - Regex: !Sub '^${pPathPrefix}/(.*)$'
+                Replace: '/$1'
+  rHttpDenyRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: cAuth
+    Properties:
+      ListenerArn:
+        Fn::ImportValue: !Sub '${pAlbStackName}:HttpListenerArn'
+      Priority: !Ref pDenyRulePriority
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - !Sub '${pPathPrefix}/*'
+      Actions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: "401"
+            ContentType: application/json
+            MessageBody: '{"error":"Unauthorized","message":"Valid token required in Authorization header"}'
+  rHttpsForwardRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: cHttps
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - E3002 # Transforms (url-rewrite) is not yet in the cfn-lint schema; accepted by the service
+    Properties:
+      ListenerArn:
+        Fn::ImportValue: !Sub '${pAlbStackName}:HttpsListenerArn'
+      Priority: !Ref pRulePriority
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - !Sub '${pPathPrefix}/*'
+        - !If
+          - cAuth
+          - Field: http-header
+            HttpHeaderConfig:
+              HttpHeaderName: Authorization
+              Values:
+                - Fn::Sub:
+                    - 'Bearer {{resolve:secretsmanager:${SecretName}:SecretString:token}}'
+                    - SecretName:
+                        Fn::ImportValue: !Sub '${pTokenSecretStackName}:SecretName'
+                - Fn::Sub:
+                    - '{{resolve:secretsmanager:${SecretName}:SecretString:token}}'
+                    - SecretName:
+                        Fn::ImportValue: !Sub '${pTokenSecretStackName}:SecretName'
+          - !Ref AWS::NoValue
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref rTargetGroup
+      Transforms:
+        - Type: url-rewrite
+          UrlRewriteConfig:
+            Rewrites:
+              - Regex: !Sub '^${pPathPrefix}/(.*)$'
+                Replace: '/$1'
+  rHttpsDenyRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: cHttpsAuth
+    Properties:
+      ListenerArn:
+        Fn::ImportValue: !Sub '${pAlbStackName}:HttpsListenerArn'
+      Priority: !Ref pDenyRulePriority
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - !Sub '${pPathPrefix}/*'
+      Actions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: "401"
+            ContentType: application/json
+            MessageBody: '{"error":"Unauthorized","message":"Valid token required in Authorization header"}'
+Outputs:
+  TargetGroupArn:
+    Description: ARN of the target group
+    Value: !Ref rTargetGroup
+    Export:
+      Name: !Sub ${AWS::StackName}:TargetGroupArn
+  StackContact:
+    Value: !Ref pDeveloper
