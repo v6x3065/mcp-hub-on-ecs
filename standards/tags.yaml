@@ -5,7 +5,7 @@ tags:
   pAdminTeamTag:          { key: AdminTeam,          default: "GISS" }
   pApplicationCiTag:      { key: ApplicationCi,      default: "CI00000000000000" }
   pPrimaryItContactTag:   { key: PrimaryItContact,   default: "cn_it_infra_cloud_ops@lists.lilly.com" }
-  pSNOWRequestIdTag:      { key: SNOWRequestId,      default: "NA" }
+  pSNOWRequestIdTag:      { key: SNOWRequestId,      default: "CHG3151871" }
   pSystemOwnerTag:        { key: SystemOwner,        default: "xu_ming_ming@lilly.com" }
   pSystemCustodianTag:    { key: SystemCustodian,    default: "shen_jun_jack@lilly.com" }
   pCostCenterTag:         { key: CostCenter,         default: "5205060" }

@@ -115,7 +115,7 @@ Parameters:
   pSNOWRequestIdTag:
     Description: Snow Request Id Tag Value
     Type: String
-    Default: "NA"
+    Default: "CHG3151871"
   pSystemOwnerTag:
     Description: System Owner Tag Value
     Type: String

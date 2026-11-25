@@ -46,7 +46,7 @@ The central CI deploys changed templates in path order and stops on the first fa
 - `pTargetAccountId` in `-ecs-task-d-iamp-01` (pilot target account; `NA` = no cross-account access)
 - `pGitHubRepo` in `-github-action-d-iamr-01` (placeholder `TBD-aws-mcp`; organization `EliLillyCo`)
 - `pCertificateArn` in `-d-alb-01` and `pHttpsEnabled` in the `tg` stacks, only if Cloudflare connects to the ALB over HTTPS
-- `pSNOWRequestIdTag` in every template (via `standards/tags.yaml`), currently `NA`
+- `pSNOWRequestIdTag` in every template (via `standards/tags.yaml`), currently `CHG3151871`
 
 ## Local checks before a PR
 
