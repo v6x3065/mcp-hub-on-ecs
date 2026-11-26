@@ -71,9 +71,9 @@ Parameters:
     Type: String
     Default: "EliLillyCo"
   pGitHubRepo:
-    Description: GitHub repository allowed to assume the role (placeholder until the repository exists)
+    Description: GitHub repository allowed to assume the role
     Type: String
-    Default: "TBD-aws-mcp"
+    Default: "BUIT_CN_awsmcp_AWS"
   pPolicyStackName:
     Description: Stack that exports the ECR push policy (PolicyArn)
     Type: String

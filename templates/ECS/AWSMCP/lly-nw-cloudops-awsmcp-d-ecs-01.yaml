@@ -1,6 +1,7 @@
 ####################################################################################
 # Description:                                                                     #
-# ECS cluster (Fargate) shared by the aws-mcp services.                            #
+# ECS cluster (Fargate) shared by the aws-mcp services, with the Cloud Map HTTP     #
+# namespace used by ECS Service Connect (gateway -> aws-api / aws-doc).          #
 #                                                                                  #
 # Please update:                                                                   #
 #     1, Change information                                                        #
@@ -9,6 +10,7 @@
 ####################################################################################
 #Update 1: please update the change information
   #CR: ___NA_________
+  #Change 2026-11-25: single MCP entry (gateway) + Entra ID JWT validation on the ALB
   #Change request purpose: ______aws-mcp: ECS cluster____________
   #Developer: __Jack.Shen___________
   #Reviewer: __Simon.Xu___________
@@ -23,6 +25,7 @@ Metadata:
         Parameters:
           - pClusterName
           - pContainerInsights
+          - pServiceConnectNamespace
       -
         Label:
           default: Tags
@@ -59,6 +62,10 @@ Parameters:
     AllowedValues:
       - "enabled"
       - "disabled"
+  pServiceConnectNamespace:
+    Description: Cloud Map HTTP namespace for ECS Service Connect (internal service names)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d"
 #Update 3: please update Tag Parameter Default values
   pApplNameTag:
     Description: Application Name Tag Value
@@ -134,10 +141,46 @@ Parameters:
       - Guoshu.Wan
       - Robin.Zhong
 Resources:
+  rServiceConnectNamespace:
+    Type: AWS::ServiceDiscovery::HttpNamespace
+    Properties:
+      Name: !Ref pServiceConnectNamespace
+      Description: aws-mcp ECS Service Connect namespace
+      Tags:
+        - Key: "Name"
+          Value: !Ref pServiceConnectNamespace
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag
   rCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: !Ref pClusterName
+      ServiceConnectDefaults:
+        Namespace: !GetAtt rServiceConnectNamespace.Arn
       ClusterSettings:
         - Name: containerInsights
           Value: !Ref pContainerInsights
@@ -181,5 +224,15 @@ Outputs:
     Value: !Ref rCluster
     Export:
       Name: !Sub ${AWS::StackName}:ClusterName
+  NamespaceArn:
+    Description: ARN of the Service Connect namespace
+    Value: !GetAtt rServiceConnectNamespace.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}:NamespaceArn
+  NamespaceName:
+    Description: Name of the Service Connect namespace
+    Value: !Ref pServiceConnectNamespace
+    Export:
+      Name: !Sub ${AWS::StackName}:NamespaceName
   StackContact:
     Value: !Ref pDeveloper

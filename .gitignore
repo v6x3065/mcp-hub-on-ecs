@@ -87,3 +87,7 @@ Thumbs.db
 # Scripts with sensitive data
 scripts/update-sg.sh
 terraform/post-deploy.sh
+
+# Docker image archives
+docker/*.zip
+*.dockerbuild.zip

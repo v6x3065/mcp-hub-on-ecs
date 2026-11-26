@@ -1,10 +1,11 @@
 ####################################################################################
 # Description:                                                                     #
-# Target group + listener rules of the aws-mcp aws-api MCP server (instance 01).   #
-#   <pPathPrefix>/*  ->  rewrite to /*  ->  target group (container port)          #
-# When pRequireAuth = true the rule only matches requests with the bearer token    #
-# (Authorization: "Bearer <token>" or "<token>"), resolved from Secrets Manager;   #
-# a lower-priority rule answers 401 for the same path without the token.           #
+# Target group + listener rule of the aws-mcp MCP gateway (instance 00), the only  #
+# public MCP entry:  https://<pHostHeader>/mcp  ->  target group (container port). #
+# pAuthMode = jwt (default): the ALB validates the Entra ID access token           #
+#   (signature, iss, exp, aud, scp) before forwarding; missing/invalid -> 401.     #
+# pAuthMode = none: no authentication at the ALB (troubleshooting only).          #
+# Target health checks go straight to the targets and are not subject to the rule. #
 #                                                                                  #
 # Please update:                                                                   #
 #     1, Change information                                                        #
@@ -13,11 +14,11 @@
 ####################################################################################
 #Update 1: please update the change information
   #CR: ___NA_________
-  #Change request purpose: ______aws-mcp: target group and routing for aws-api____________
+  #Change request purpose: ______aws-mcp: target group and routing for the MCP gateway (Entra ID JWT)____________
   #Developer: __Jack.Shen___________
   #Reviewer: __Simon.Xu___________
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Lilly China CloudOps Code for aws-mcp Target Group (aws-api)
+Description: Lilly China CloudOps Code for aws-mcp Target Group (mcp-gateway)
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -34,17 +35,22 @@ Metadata:
         Label:
           default: Routing
         Parameters:
-          - pPathPrefix
+          - pHostHeader
           - pRulePriority
-          - pDenyRulePriority
-          - pRequireAuth
-          - pHttpsEnabled
+          - pAuthMode
+      -
+        Label:
+          default: Entra ID JWT validation (pAuthMode = jwt)
+        Parameters:
+          - pJwksEndpoint
+          - pJwtIssuer
+          - pJwtAudience
+          - pJwtScope
       -
         Label:
           default: Upstream Stacks
         Parameters:
           - pAlbStackName
-          - pTokenSecretStackName
       -
         Label:
           default: Tags
@@ -73,7 +79,7 @@ Parameters:
   pTargetGroupName:
     Description: Name of the target group (max 32 characters)
     Type: String
-    Default: "lly-nw-cloudops-awsmcp-d-tg-01"
+    Default: "lly-nw-cloudops-awsmcp-d-tg-00"
   pVPC:
     Description: VPC ID (ChinaDevelopment-2VPC)
     Type: "AWS::EC2::VPC::Id"
@@ -85,51 +91,50 @@ Parameters:
     MinValue: 1
     MaxValue: 65535
   pHealthCheckPath:
-    Description: Health check path on the container
+    Description: Health check path on the container (no token required)
     Type: String
-    Default: "/"
+    Default: "/healthz"
   pHealthCheckMatcher:
     Description: HTTP codes treated as healthy
     Type: String
-    Default: "200,404"
-  pPathPrefix:
-    Description: Path prefix routed to this service; stripped before forwarding
+    Default: "200"
+  pHostHeader:
+    Description: Public host name of the MCP endpoint (Cloudflare record)
     Type: String
-    Default: "/aws-api"
+    Default: "clade.dev.lilly.cn"
   pRulePriority:
     Description: Priority of the forwarding rule (unique per listener)
     Type: Number
-    Default: 100
+    Default: 10
     MinValue: 1
     MaxValue: 50000
-  pDenyRulePriority:
-    Description: Priority of the 401 rule (must be larger than pRulePriority)
-    Type: Number
-    Default: 101
-    MinValue: 1
-    MaxValue: 50000
-  pRequireAuth:
-    Description: Require the bearer token from the token secret
+  pAuthMode:
+    Description: "jwt = ALB validates the Entra ID access token; none = no authentication (troubleshooting only)"
     Type: String
-    Default: "true"
+    Default: "jwt"
     AllowedValues:
-      - "true"
-      - "false"
-  pHttpsEnabled:
-    Description: Also create the rules on the HTTPS listener (only when the ALB stack has a certificate)
+      - "jwt"
+      - "none"
+  pJwksEndpoint:
+    Description: Entra ID signing keys (JWKS) of the lilly.com tenant
     Type: String
-    Default: "false"
-    AllowedValues:
-      - "true"
-      - "false"
+    Default: "https://login.microsoftonline.com/18a59a81-eea8-4c30-948a-d8824cdc2580/discovery/v2.0/keys"
+  pJwtIssuer:
+    Description: Expected iss of v2 access tokens
+    Type: String
+    Default: "https://login.microsoftonline.com/18a59a81-eea8-4c30-948a-d8824cdc2580/v2.0"
+  pJwtAudience:
+    Description: Expected aud (Application (client) ID of AWS Cloud Resource Search Tool)
+    Type: String
+    Default: "96450fc2-2afc-4c1a-8758-10d43822a9a5"
+  pJwtScope:
+    Description: Delegated scope that must be present in scp
+    Type: String
+    Default: "mcp.access"
   pAlbStackName:
-    Description: Stack that exports the listeners (HttpListenerArn, HttpsListenerArn)
+    Description: Stack that exports the HTTPS listener (HttpsListenerArn)
     Type: String
     Default: "lly-nw-cloudops-awsmcp-d-alb-01"
-  pTokenSecretStackName:
-    Description: Stack that exports the token secret (SecretName)
-    Type: String
-    Default: "lly-nw-cloudops-awsmcp-d-sm-01"
 #Update 3: please update Tag Parameter Default values
   pApplNameTag:
     Description: Application Name Tag Value
@@ -205,9 +210,7 @@ Parameters:
       - Guoshu.Wan
       - Robin.Zhong
 Conditions:
-  cAuth: !Equals [!Ref pRequireAuth, 'true']
-  cHttps: !Equals [!Ref pHttpsEnabled, 'true']
-  cHttpsAuth: !And [!Condition cHttps, !Condition cAuth]
+  cJwt: !Equals [!Ref pAuthMode, 'jwt']
 Resources:
   rTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -257,128 +260,58 @@ Resources:
           Value: !Ref pBusinessAreaTag
         - Key: "Level1BusinessArea"
           Value: !Ref pLevel1BusinessAreaTag
-  rHttpForwardRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Metadata:
-      cfn-lint:
-        config:
-          ignore_checks:
-            - E3002 # Transforms (url-rewrite) is not yet in the cfn-lint schema; accepted by the service
-    Properties:
-      ListenerArn:
-        Fn::ImportValue: !Sub '${pAlbStackName}:HttpListenerArn'
-      Priority: !Ref pRulePriority
-      Conditions:
-        - Field: path-pattern
-          PathPatternConfig:
-            Values:
-              - !Sub '${pPathPrefix}/*'
-        - !If
-          - cAuth
-          - Field: http-header
-            HttpHeaderConfig:
-              HttpHeaderName: Authorization
-              Values:
-                - Fn::Sub:
-                    - 'Bearer {{resolve:secretsmanager:${SecretName}:SecretString:token}}'
-                    - SecretName:
-                        Fn::ImportValue: !Sub '${pTokenSecretStackName}:SecretName'
-                - Fn::Sub:
-                    - '{{resolve:secretsmanager:${SecretName}:SecretString:token}}'
-                    - SecretName:
-                        Fn::ImportValue: !Sub '${pTokenSecretStackName}:SecretName'
-          - !Ref AWS::NoValue
-      Actions:
-        - Type: forward
-          TargetGroupArn: !Ref rTargetGroup
-      Transforms:
-        - Type: url-rewrite
-          UrlRewriteConfig:
-            Rewrites:
-              - Regex: !Sub '^${pPathPrefix}/(.*)$'
-                Replace: '/$1'
-  rHttpDenyRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Condition: cAuth
-    Properties:
-      ListenerArn:
-        Fn::ImportValue: !Sub '${pAlbStackName}:HttpListenerArn'
-      Priority: !Ref pDenyRulePriority
-      Conditions:
-        - Field: path-pattern
-          PathPatternConfig:
-            Values:
-              - !Sub '${pPathPrefix}/*'
-      Actions:
-        - Type: fixed-response
-          FixedResponseConfig:
-            StatusCode: "401"
-            ContentType: application/json
-            MessageBody: '{"error":"Unauthorized","message":"Valid token required in Authorization header"}'
   rHttpsForwardRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Condition: cHttps
     Metadata:
       cfn-lint:
         config:
           ignore_checks:
-            - E3002 # Transforms (url-rewrite) is not yet in the cfn-lint schema; accepted by the service
+            - E3002 # jwt-validation may not be in the cfn-lint schema yet; accepted by the service
     Properties:
       ListenerArn:
         Fn::ImportValue: !Sub '${pAlbStackName}:HttpsListenerArn'
       Priority: !Ref pRulePriority
       Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - !Ref pHostHeader
         - Field: path-pattern
           PathPatternConfig:
             Values:
-              - !Sub '${pPathPrefix}/*'
-        - !If
-          - cAuth
-          - Field: http-header
-            HttpHeaderConfig:
-              HttpHeaderName: Authorization
-              Values:
-                - Fn::Sub:
-                    - 'Bearer {{resolve:secretsmanager:${SecretName}:SecretString:token}}'
-                    - SecretName:
-                        Fn::ImportValue: !Sub '${pTokenSecretStackName}:SecretName'
-                - Fn::Sub:
-                    - '{{resolve:secretsmanager:${SecretName}:SecretString:token}}'
-                    - SecretName:
-                        Fn::ImportValue: !Sub '${pTokenSecretStackName}:SecretName'
-          - !Ref AWS::NoValue
-      Actions:
-        - Type: forward
-          TargetGroupArn: !Ref rTargetGroup
-      Transforms:
-        - Type: url-rewrite
-          UrlRewriteConfig:
-            Rewrites:
-              - Regex: !Sub '^${pPathPrefix}/(.*)$'
-                Replace: '/$1'
-  rHttpsDenyRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Condition: cHttpsAuth
-    Properties:
-      ListenerArn:
-        Fn::ImportValue: !Sub '${pAlbStackName}:HttpsListenerArn'
-      Priority: !Ref pDenyRulePriority
-      Conditions:
-        - Field: path-pattern
-          PathPatternConfig:
-            Values:
-              - !Sub '${pPathPrefix}/*'
-      Actions:
-        - Type: fixed-response
-          FixedResponseConfig:
-            StatusCode: "401"
-            ContentType: application/json
-            MessageBody: '{"error":"Unauthorized","message":"Valid token required in Authorization header"}'
+              - /mcp
+              - /mcp/*
+      Actions: !If
+        - cJwt
+        - - Type: jwt-validation
+            Order: 1
+            JwtValidationConfig:
+              JwksEndpoint: !Ref pJwksEndpoint
+              Issuer: !Ref pJwtIssuer
+              AdditionalClaims:
+                - Name: aud
+                  Format: single-string
+                  Values:
+                    - !Ref pJwtAudience
+                - Name: scp
+                  Format: space-separated-values
+                  Values:
+                    - !Ref pJwtScope
+          - Type: forward
+            Order: 2
+            TargetGroupArn: !Ref rTargetGroup
+        - - Type: forward
+            TargetGroupArn: !Ref rTargetGroup
 Outputs:
   TargetGroupArn:
     Description: ARN of the target group
     Value: !Ref rTargetGroup
     Export:
       Name: !Sub ${AWS::StackName}:TargetGroupArn
+  McpUrl:
+    Description: MCP server URL for Copilot Studio
+    Value: !Sub 'https://${pHostHeader}/mcp'
+  AuthMode:
+    Value: !Ref pAuthMode
   StackContact:
     Value: !Ref pDeveloper

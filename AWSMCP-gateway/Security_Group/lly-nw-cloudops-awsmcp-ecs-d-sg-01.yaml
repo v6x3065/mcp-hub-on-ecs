@@ -1,0 +1,214 @@
+####################################################################################
+# Description:                                                                     #
+# Security group of the aws-mcp backend ECS tasks (aws-api, aws-doc). Inbound     #
+# only from the MCP gateway security group on the container port (no ALB);         #
+# outbound HTTPS only (AWS APIs, ECR, docs site).                                  #
+# Egress to the internet goes through the central TGW/GWLB firewall path.          #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values                                                  #
+#     3, Tag Parameter Default values (keep identical to standards/tags.yaml) #
+####################################################################################
+#Update 1: please update the change information
+  #CR: ___NA_________
+  #Change 2026-11-25: single MCP entry (gateway) + Entra ID JWT validation on the ALB
+  #Change request purpose: ______aws-mcp: ECS task security group____________
+  #Developer: __Jack.Shen___________
+  #Reviewer: __Simon.Xu___________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China CloudOps Code for aws-mcp ECS Security Group
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Security Group Info.
+        Parameters:
+          - pSecurityGroupName
+          - pVPC
+          - pContainerPort
+          - pEgressCidr
+      -
+        Label:
+          default: Upstream Stacks
+        Parameters:
+          - pGatewaySecurityGroupStackName
+      -
+        Label:
+          default: Tags
+        Parameters:
+          - pApplNameTag
+          - pAdminTeamTag
+          - pApplicationCiTag
+          - pPrimaryItContactTag
+          - pSNOWRequestIdTag
+          - pSystemOwnerTag
+          - pSystemCustodianTag
+          - pCostCenterTag
+          - pMLPSTag
+          - pEnvironmentTag
+          - pDataClassificationTag
+          - pBusinessAreaTag
+          - pLevel1BusinessAreaTag
+      -
+        Label:
+          default: Developer and Reviewer
+        Parameters:
+          - pDeveloper
+          - pReviewer
+#Update 2: please update all Parameter Default values
+Parameters:
+  pSecurityGroupName:
+    Description: Name of the security group
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-ecs-d-sg-01"
+  pVPC:
+    Description: VPC ID (ChinaDevelopment-2VPC)
+    Type: "AWS::EC2::VPC::Id"
+    Default: "vpc-0c748129d3dc6da22"
+  pContainerPort:
+    Description: Container port of the backend MCP servers
+    Type: Number
+    Default: 8000
+    MinValue: 1
+    MaxValue: 65535
+  pEgressCidr:
+    Description: Destination CIDR of the outbound HTTPS rule
+    Type: String
+    Default: "0.0.0.0/0"
+  pGatewaySecurityGroupStackName:
+    Description: Stack that exports the MCP gateway security group (SecurityGroupId)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-gw-d-sg-01"
+#Update 3: please update Tag Parameter Default values
+  pApplNameTag:
+    Description: Application Name Tag Value
+    Type: String
+    Default: "aws-mcp"
+  pAdminTeamTag:
+    Description: Admin Team Tag Value
+    Type: String
+    Default: "GISS"
+  pApplicationCiTag:
+    Description: Application Ci Tag Value
+    Type: String
+    Default: "CI00000000000000"
+  pPrimaryItContactTag:
+    Description: Primary IT Contact Tag Value
+    Type: String
+    Default: "cn_it_infra_cloud_ops@lists.lilly.com"
+  pSNOWRequestIdTag:
+    Description: Snow Request Id Tag Value
+    Type: String
+    Default: "CHG3151871"
+  pSystemOwnerTag:
+    Description: System Owner Tag Value
+    Type: String
+    Default: "xu_ming_ming@lilly.com"
+  pSystemCustodianTag:
+    Description: SystemCustodian Tag Value
+    Type: String
+    Default: "shen_jun_jack@lilly.com"
+  pCostCenterTag:
+    Description: CostCenter Tag Value
+    Type: String
+    Default: "5205060"
+  pMLPSTag:
+    Description: MLPS Tag Value
+    Type: String
+    Default: "No"
+  pEnvironmentTag:
+    Description: Environment Tag Value
+    Type: String
+    Default: "DEV"
+  pDataClassificationTag:
+    Description: Data Classification Tag Value
+    Type: String
+    Default: "Yellow"
+  pBusinessAreaTag:
+    Description: Business Area Tag Value
+    Type: String
+    Default: "Commercial"
+  pLevel1BusinessAreaTag:
+    Description: Level 1 Business Area Tag Value
+    Type: String
+    Default: "IBU"
+  pDeveloper:
+    Description: Code developer
+    Type: String
+    Default: Jack.Shen
+    AllowedValues:
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+  pReviewer:
+    Description: Code Reviewer
+    Type: String
+    Default: Simon.Xu
+    AllowedValues:
+      - Nik.Ni
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+Resources:
+  rEcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Ref pSecurityGroupName
+      GroupDescription: aws-mcp backend ECS task security group
+      VpcId: !Ref pVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref pContainerPort
+          ToPort: !Ref pContainerPort
+          SourceSecurityGroupId:
+            Fn::ImportValue: !Sub '${pGatewaySecurityGroupStackName}:SecurityGroupId'
+          Description: From the MCP gateway (Service Connect)
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref pEgressCidr
+          Description: HTTPS to AWS APIs, ECR and public documentation
+      Tags:
+        - Key: "Name"
+          Value: !Ref pSecurityGroupName
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag
+Outputs:
+  SecurityGroupId:
+    Description: ID of the ECS task security group
+    Value: !GetAtt rEcsSecurityGroup.GroupId
+    Export:
+      Name: !Sub ${AWS::StackName}:SecurityGroupId
+  StackContact:
+    Value: !Ref pDeveloper

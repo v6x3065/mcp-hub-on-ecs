@@ -1,0 +1,2 @@
+# Pin to the exact version you test locally before building the release image.
+fastmcp>=2.12

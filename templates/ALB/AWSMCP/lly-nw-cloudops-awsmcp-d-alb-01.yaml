@@ -1,10 +1,9 @@
 ####################################################################################
 # Description:                                                                     #
-# Internet-facing Application Load Balancer of aws-mcp with HTTP (80) and optional #
-# HTTPS (443) listeners. The default action returns 404; each MCP service adds its #
-# own path rule in its tg stack. Cloudflare sits in front (DNS/certificate owned   #
-# by the Cloudflare team); HTTPS listener is only created when a certificate ARN   #
-# is provided (pCertificateArn != NA).                                             #
+# Internet-facing Application Load Balancer of aws-mcp with an HTTPS (443) listener#
+# only. The default action returns 404; each MCP service adds its own path rule   #
+# in its tg stack. Cloudflare sits in front (DNS owned by the Cloudflare team) and #
+# connects over HTTPS (Full strict) using the ACM certificate (pCertificateArn).   #
 #                                                                                  #
 # Please update:                                                                   #
 #     1, Change information                                                        #
@@ -92,9 +91,9 @@ Parameters:
       - "true"
       - "false"
   pCertificateArn:
-    Description: ACM certificate ARN for the HTTPS listener (NA = no HTTPS listener)
+    Description: ACM certificate ARN for the HTTPS listener
     Type: String
-    Default: "NA"
+    Default: "arn:aws-cn:acm:cn-northwest-1:820607692027:certificate/7e2b889d-c54c-4932-ad04-5d7da2dd0fb3"
   pSslPolicy:
     Description: TLS policy of the HTTPS listener
     Type: String
@@ -177,8 +176,6 @@ Parameters:
       - Jack.Shen
       - Guoshu.Wan
       - Robin.Zhong
-Conditions:
-  cHttps: !Not [!Equals [!Ref pCertificateArn, 'NA']]
 Resources:
   rLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -228,21 +225,8 @@ Resources:
           Value: !Ref pBusinessAreaTag
         - Key: "Level1BusinessArea"
           Value: !Ref pLevel1BusinessAreaTag
-  rHttpListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref rLoadBalancer
-      Port: 80
-      Protocol: HTTP
-      DefaultActions:
-        - Type: fixed-response
-          FixedResponseConfig:
-            StatusCode: "404"
-            ContentType: application/json
-            MessageBody: '{"error":"Not Found"}'
   rHttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    Condition: cHttps
     Properties:
       LoadBalancerArn: !Ref rLoadBalancer
       Port: 443
@@ -272,14 +256,8 @@ Outputs:
     Value: !GetAtt rLoadBalancer.CanonicalHostedZoneID
     Export:
       Name: !Sub ${AWS::StackName}:HostedZoneId
-  HttpListenerArn:
-    Description: ARN of the HTTP listener
-    Value: !Ref rHttpListener
-    Export:
-      Name: !Sub ${AWS::StackName}:HttpListenerArn
   HttpsListenerArn:
-    Condition: cHttps
-    Description: ARN of the HTTPS listener (only when a certificate is configured)
+    Description: ARN of the HTTPS listener
     Value: !Ref rHttpsListener
     Export:
       Name: !Sub ${AWS::StackName}:HttpsListenerArn

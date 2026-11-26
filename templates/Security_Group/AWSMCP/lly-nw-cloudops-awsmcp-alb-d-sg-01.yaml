@@ -166,12 +166,6 @@ Resources:
           SourcePrefixListId:
             Fn::ImportValue: !Sub '${pPrefixListStackName}:PrefixListId'
           Description: HTTPS from Cloudflare
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          SourcePrefixListId:
-            Fn::ImportValue: !Sub '${pPrefixListStackName}:PrefixListId'
-          Description: HTTP from Cloudflare
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: !Ref pContainerPort

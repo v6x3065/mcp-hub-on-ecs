@@ -14,13 +14,14 @@ on:
         options:
           - aws-api
           - aws-doc
+          - mcp-gateway
       repo_url:
-        description: Fork repository
+        description: Fork repository (aws-api / aws-doc only)
         required: true
         default: https://github.com/mengchencloud/mcp.git
         type: string
       ref:
-        description: Branch or tag of the fork (the resolved commit SHA becomes the image tag)
+        description: Branch or tag of the fork (aws-api / aws-doc only; the resolved commit SHA becomes the image tag)
         required: true
         default: feat/cross-account-support
         type: string
@@ -39,24 +40,36 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Resolve service settings
         id: svc
         run: |
           case "${{ inputs.service }}" in
             aws-api) echo "repo=lly-nw-cloudops-awsmcp-d-ecr-01" >> "$GITHUB_OUTPUT"
-                     echo "dir=src/aws-api-mcp-server" >> "$GITHUB_OUTPUT"
+                     echo "context=mcp/src/aws-api-mcp-server" >> "$GITHUB_OUTPUT"
                      echo "template=ecssvc-01" >> "$GITHUB_OUTPUT" ;;
             aws-doc) echo "repo=lly-nw-cloudops-awsmcp-d-ecr-02" >> "$GITHUB_OUTPUT"
-                     echo "dir=src/aws-documentation-mcp-server" >> "$GITHUB_OUTPUT"
+                     echo "context=mcp/src/aws-documentation-mcp-server" >> "$GITHUB_OUTPUT"
                      echo "template=ecssvc-02" >> "$GITHUB_OUTPUT" ;;
+            mcp-gateway) echo "repo=lly-nw-cloudops-awsmcp-d-ecr-00" >> "$GITHUB_OUTPUT"
+                     echo "context=mcp-gateway" >> "$GITHUB_OUTPUT"
+                     echo "template=ecssvc-00" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Clone fork
+        if: inputs.service != 'mcp-gateway'
         run: git clone --depth 1 -b "${{ inputs.ref }}" "${{ inputs.repo_url }}" mcp
 
       - name: Resolve image tag
         id: tag
-        run: echo "tag=sha-$(git -C mcp rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ "${{ inputs.service }}" = "mcp-gateway" ]; then
+            echo "tag=sha-$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=sha-$(git -C mcp rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -73,10 +86,24 @@ jobs:
           aws ecr get-login-password --region "$AWS_REGION" |
             docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
+      - name: Smoke test gateway image
+        if: inputs.service == 'mcp-gateway'
+        run: |
+          docker build --platform linux/amd64 -t gateway-test "${{ steps.svc.outputs.context }}"
+          docker run -d --name gw -p 8000:8000 \
+            -e MCP_BACKEND_AWS_API_URL=http://127.0.0.1:9/mcp \
+            -e MCP_BACKEND_AWS_DOC_URL=http://127.0.0.1:9/mcp gateway-test
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/healthz || true)
+            [ "$code" = "200" ] && break; sleep 2
+          done
+          docker logs gw
+          [ "$code" = "200" ] || { echo "healthz returned $code"; exit 1; }
+
       - name: Build and push (linux/amd64)
         uses: docker/build-push-action@v6
         with:
-          context: mcp/${{ steps.svc.outputs.dir }}
+          context: ${{ steps.svc.outputs.context }}
           platforms: linux/amd64
           push: true
           tags: ${{ env.ECR_REGISTRY }}/${{ steps.svc.outputs.repo }}:${{ steps.tag.outputs.tag }}

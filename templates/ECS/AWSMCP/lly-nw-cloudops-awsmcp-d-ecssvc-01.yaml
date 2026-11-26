@@ -4,7 +4,9 @@
 # (instance 01). Image = <ECR repository URI>:<pImageTag>.                         #
 # RELEASE: build and push the image (GitHub Actions), then change pImageTag (and   #
 # pDesiredCount, first release only) in a PR; the central CI updates this stack.   #
-# The server runs read-only (READ_OPERATIONS_ONLY=true) behind the ALB.            #
+# The server runs read-only (READ_OPERATIONS_ONLY=true). Internal only: no ALB;   #
+# reached by the MCP gateway (ecssvc-00) at http://aws-api:8000/mcp through ECS  #
+# Service Connect. Authentication is done once, on the ALB in front of the gateway.#
 #                                                                                  #
 # Please update:                                                                   #
 #     1, Change information                                                        #
@@ -13,6 +15,7 @@
 ####################################################################################
 #Update 1: please update the change information
   #CR: ___NA_________
+  #Change 2026-11-25: single MCP entry (gateway) + Entra ID JWT validation on the ALB
   #Change request purpose: ______aws-mcp: ECS service for aws-api____________
   #Developer: __Jack.Shen___________
   #Reviewer: __Simon.Xu___________
@@ -56,7 +59,6 @@ Metadata:
           - pExecRoleStackName
           - pTaskRoleStackName
           - pEcsSecurityGroupStackName
-          - pTargetGroupStackName
           - pEcrStackName
           - pLogGroupStackName
       -
@@ -133,7 +135,7 @@ Parameters:
     Type: String
     Default: "*"
   pAuthType:
-    Description: Server side authentication (no-auth = rely on the ALB token, oauth = validate JWTs)
+    Description: "Server side authentication (keep no-auth; the ALB validates the Entra ID token in front of the gateway)"
     Type: String
     Default: "no-auth"
     AllowedValues:
@@ -167,10 +169,6 @@ Parameters:
     Description: Stack that exports the ECS security group (SecurityGroupId)
     Type: String
     Default: "lly-nw-cloudops-awsmcp-ecs-d-sg-01"
-  pTargetGroupStackName:
-    Description: Stack that exports the target group (TargetGroupArn)
-    Type: String
-    Default: "lly-nw-cloudops-awsmcp-d-tg-01"
   pEcrStackName:
     Description: Stack that exports the ECR repository (RepositoryUri)
     Type: String
@@ -282,8 +280,10 @@ Resources:
                   Fn::ImportValue: !Sub '${pEcrStackName}:RepositoryUri'
           Essential: true
           PortMappings:
-            - ContainerPort: !Ref pContainerPort
+            - Name: !Ref pContainerName
+              ContainerPort: !Ref pContainerPort
               Protocol: tcp
+              AppProtocol: http
           Environment:
             - Name: AWS_REGION
               Value: !Ref AWS::Region
@@ -367,7 +367,6 @@ Resources:
       TaskDefinition: !Ref rTaskDefinition
       LaunchType: FARGATE
       DesiredCount: !Ref pDesiredCount
-      HealthCheckGracePeriodSeconds: 60
       EnableECSManagedTags: true
       PropagateTags: SERVICE
       DeploymentConfiguration:
@@ -385,11 +384,23 @@ Resources:
             - !Ref pPrivateSubnetC
           SecurityGroups:
             - Fn::ImportValue: !Sub '${pEcsSecurityGroupStackName}:SecurityGroupId'
-      LoadBalancers:
-        - ContainerName: !Ref pContainerName
-          ContainerPort: !Ref pContainerPort
-          TargetGroupArn:
-            Fn::ImportValue: !Sub '${pTargetGroupStackName}:TargetGroupArn'
+      ServiceConnectConfiguration:
+        Enabled: true
+        Namespace:
+          Fn::ImportValue: !Sub '${pClusterStackName}:NamespaceArn'
+        Services:
+          - PortName: !Ref pContainerName
+            DiscoveryName: !Ref pContainerName
+            ClientAliases:
+              - Port: !Ref pContainerPort
+                DnsName: !Ref pContainerName
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Fn::ImportValue: !Sub '${pLogGroupStackName}:LogGroupName'
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: service-connect
       Tags:
         - Key: "Name"
           Value: !Ref pServiceName
@@ -430,5 +441,10 @@ Outputs:
     Value: !Ref rTaskDefinition
     Export:
       Name: !Sub ${AWS::StackName}:TaskDefinitionArn
+  ServiceConnectEndpoint:
+    Description: Internal MCP endpoint used by the gateway
+    Value: !Sub 'http://${pContainerName}:${pContainerPort}/mcp'
+    Export:
+      Name: !Sub ${AWS::StackName}:ServiceConnectEndpoint
   StackContact:
     Value: !Ref pDeveloper

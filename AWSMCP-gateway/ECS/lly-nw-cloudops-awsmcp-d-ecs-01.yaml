@@ -1,0 +1,238 @@
+####################################################################################
+# Description:                                                                     #
+# ECS cluster (Fargate) shared by the aws-mcp services, with the Cloud Map HTTP     #
+# namespace used by ECS Service Connect (gateway -> aws-api / aws-doc).          #
+#                                                                                  #
+# Please update:                                                                   #
+#     1, Change information                                                        #
+#     2, Parameter Default values                                                  #
+#     3, Tag Parameter Default values (keep identical to standards/tags.yaml) #
+####################################################################################
+#Update 1: please update the change information
+  #CR: ___NA_________
+  #Change 2026-11-25: single MCP entry (gateway) + Entra ID JWT validation on the ALB
+  #Change request purpose: ______aws-mcp: ECS cluster____________
+  #Developer: __Jack.Shen___________
+  #Reviewer: __Simon.Xu___________
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lilly China CloudOps Code for aws-mcp ECS Cluster
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Cluster Info.
+        Parameters:
+          - pClusterName
+          - pContainerInsights
+          - pServiceConnectNamespace
+      -
+        Label:
+          default: Tags
+        Parameters:
+          - pApplNameTag
+          - pAdminTeamTag
+          - pApplicationCiTag
+          - pPrimaryItContactTag
+          - pSNOWRequestIdTag
+          - pSystemOwnerTag
+          - pSystemCustodianTag
+          - pCostCenterTag
+          - pMLPSTag
+          - pEnvironmentTag
+          - pDataClassificationTag
+          - pBusinessAreaTag
+          - pLevel1BusinessAreaTag
+      -
+        Label:
+          default: Developer and Reviewer
+        Parameters:
+          - pDeveloper
+          - pReviewer
+#Update 2: please update all Parameter Default values
+Parameters:
+  pClusterName:
+    Description: Name of the ECS cluster
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d-ecs-01"
+  pContainerInsights:
+    Description: Container Insights setting
+    Type: String
+    Default: "enabled"
+    AllowedValues:
+      - "enabled"
+      - "disabled"
+  pServiceConnectNamespace:
+    Description: Cloud Map HTTP namespace for ECS Service Connect (internal service names)
+    Type: String
+    Default: "lly-nw-cloudops-awsmcp-d"
+#Update 3: please update Tag Parameter Default values
+  pApplNameTag:
+    Description: Application Name Tag Value
+    Type: String
+    Default: "aws-mcp"
+  pAdminTeamTag:
+    Description: Admin Team Tag Value
+    Type: String
+    Default: "GISS"
+  pApplicationCiTag:
+    Description: Application Ci Tag Value
+    Type: String
+    Default: "CI00000000000000"
+  pPrimaryItContactTag:
+    Description: Primary IT Contact Tag Value
+    Type: String
+    Default: "cn_it_infra_cloud_ops@lists.lilly.com"
+  pSNOWRequestIdTag:
+    Description: Snow Request Id Tag Value
+    Type: String
+    Default: "CHG3151871"
+  pSystemOwnerTag:
+    Description: System Owner Tag Value
+    Type: String
+    Default: "xu_ming_ming@lilly.com"
+  pSystemCustodianTag:
+    Description: SystemCustodian Tag Value
+    Type: String
+    Default: "shen_jun_jack@lilly.com"
+  pCostCenterTag:
+    Description: CostCenter Tag Value
+    Type: String
+    Default: "5205060"
+  pMLPSTag:
+    Description: MLPS Tag Value
+    Type: String
+    Default: "No"
+  pEnvironmentTag:
+    Description: Environment Tag Value
+    Type: String
+    Default: "DEV"
+  pDataClassificationTag:
+    Description: Data Classification Tag Value
+    Type: String
+    Default: "Yellow"
+  pBusinessAreaTag:
+    Description: Business Area Tag Value
+    Type: String
+    Default: "Commercial"
+  pLevel1BusinessAreaTag:
+    Description: Level 1 Business Area Tag Value
+    Type: String
+    Default: "IBU"
+  pDeveloper:
+    Description: Code developer
+    Type: String
+    Default: Jack.Shen
+    AllowedValues:
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+  pReviewer:
+    Description: Code Reviewer
+    Type: String
+    Default: Simon.Xu
+    AllowedValues:
+      - Nik.Ni
+      - Green.Huang
+      - Simon.Xu
+      - Jack.Shen
+      - Guoshu.Wan
+      - Robin.Zhong
+Resources:
+  rServiceConnectNamespace:
+    Type: AWS::ServiceDiscovery::HttpNamespace
+    Properties:
+      Name: !Ref pServiceConnectNamespace
+      Description: aws-mcp ECS Service Connect namespace
+      Tags:
+        - Key: "Name"
+          Value: !Ref pServiceConnectNamespace
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag
+  rCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref pClusterName
+      ServiceConnectDefaults:
+        Namespace: !GetAtt rServiceConnectNamespace.Arn
+      ClusterSettings:
+        - Name: containerInsights
+          Value: !Ref pContainerInsights
+      Tags:
+        - Key: "Name"
+          Value: !Ref pClusterName
+        - Key: "ApplName"
+          Value: !Ref pApplNameTag
+        - Key: "AdminTeam"
+          Value: !Ref pAdminTeamTag
+        - Key: "ApplicationCi"
+          Value: !Ref pApplicationCiTag
+        - Key: "PrimaryItContact"
+          Value: !Ref pPrimaryItContactTag
+        - Key: "SNOWRequestId"
+          Value: !Ref pSNOWRequestIdTag
+        - Key: "SystemOwner"
+          Value: !Ref pSystemOwnerTag
+        - Key: "SystemCustodian"
+          Value: !Ref pSystemCustodianTag
+        - Key: "CostCenter"
+          Value: !Ref pCostCenterTag
+        - Key: "MLPS"
+          Value: !Ref pMLPSTag
+        - Key: "Environment"
+          Value: !Ref pEnvironmentTag
+        - Key: "DataClassification"
+          Value: !Ref pDataClassificationTag
+        - Key: "BusinessArea"
+          Value: !Ref pBusinessAreaTag
+        - Key: "Level1BusinessArea"
+          Value: !Ref pLevel1BusinessAreaTag
+Outputs:
+  ClusterArn:
+    Description: ARN of the cluster
+    Value: !GetAtt rCluster.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}:ClusterArn
+  ClusterName:
+    Description: Name of the cluster
+    Value: !Ref rCluster
+    Export:
+      Name: !Sub ${AWS::StackName}:ClusterName
+  NamespaceArn:
+    Description: ARN of the Service Connect namespace
+    Value: !GetAtt rServiceConnectNamespace.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}:NamespaceArn
+  NamespaceName:
+    Description: Name of the Service Connect namespace
+    Value: !Ref pServiceConnectNamespace
+    Export:
+      Name: !Sub ${AWS::StackName}:NamespaceName
+  StackContact:
+    Value: !Ref pDeveloper

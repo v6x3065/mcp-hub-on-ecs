@@ -1,7 +1,8 @@
 ####################################################################################
 # Description:                                                                     #
-# Security group of the aws-mcp ECS tasks. Inbound only from the ALB security      #
-# group on the container port; outbound HTTPS only (AWS APIs, ECR, docs site).     #
+# Security group of the aws-mcp backend ECS tasks (aws-api, aws-doc). Inbound     #
+# only from the MCP gateway security group on the container port (no ALB);         #
+# outbound HTTPS only (AWS APIs, ECR, docs site).                                  #
 # Egress to the internet goes through the central TGW/GWLB firewall path.          #
 #                                                                                  #
 # Please update:                                                                   #
@@ -11,6 +12,7 @@
 ####################################################################################
 #Update 1: please update the change information
   #CR: ___NA_________
+  #Change 2026-11-25: single MCP entry (gateway) + Entra ID JWT validation on the ALB
   #Change request purpose: ______aws-mcp: ECS task security group____________
   #Developer: __Jack.Shen___________
   #Reviewer: __Simon.Xu___________
@@ -31,7 +33,7 @@ Metadata:
         Label:
           default: Upstream Stacks
         Parameters:
-          - pAlbSecurityGroupStackName
+          - pGatewaySecurityGroupStackName
       -
         Label:
           default: Tags
@@ -66,7 +68,7 @@ Parameters:
     Type: "AWS::EC2::VPC::Id"
     Default: "vpc-0c748129d3dc6da22"
   pContainerPort:
-    Description: Container port the ALB forwards to
+    Description: Container port of the backend MCP servers
     Type: Number
     Default: 8000
     MinValue: 1
@@ -75,10 +77,10 @@ Parameters:
     Description: Destination CIDR of the outbound HTTPS rule
     Type: String
     Default: "0.0.0.0/0"
-  pAlbSecurityGroupStackName:
-    Description: Stack that exports the ALB security group (SecurityGroupId)
+  pGatewaySecurityGroupStackName:
+    Description: Stack that exports the MCP gateway security group (SecurityGroupId)
     Type: String
-    Default: "lly-nw-cloudops-awsmcp-alb-d-sg-01"
+    Default: "lly-nw-cloudops-awsmcp-gw-d-sg-01"
 #Update 3: please update Tag Parameter Default values
   pApplNameTag:
     Description: Application Name Tag Value
@@ -158,15 +160,15 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: !Ref pSecurityGroupName
-      GroupDescription: aws-mcp ECS task security group
+      GroupDescription: aws-mcp backend ECS task security group
       VpcId: !Ref pVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: !Ref pContainerPort
           ToPort: !Ref pContainerPort
           SourceSecurityGroupId:
-            Fn::ImportValue: !Sub '${pAlbSecurityGroupStackName}:SecurityGroupId'
-          Description: From the ALB
+            Fn::ImportValue: !Sub '${pGatewaySecurityGroupStackName}:SecurityGroupId'
+          Description: From the MCP gateway (Service Connect)
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: 443
